@@ -304,12 +304,19 @@ Air density is 1.6x standard (small game world: lower speeds for the same feel).
 
 | | |
 |---|---|
-| stall, clean / full flaps (power off, 1 g) | 20.4 m/s / 17.8 m/s |
-| cruise (75 %) / max level | ~44 m/s / ~49 m/s; Vne ~62 m/s |
-| climb (full power, ~27 m/s) | ~5 m/s |
-| water take-off, flaps 10, 2 crew + 120 kg cargo | ~150-175 m, lift-off ~21 m/s |
+| stall, clean / full flaps (power off, 1 g) | 20.7 m/s / 17.9 m/s; the horn sounds ~3 deg of AoA before the break |
+| cruise / max level | 42 m/s at ~66 % throttle; ~48 m/s at full power; Vne ~62 m/s |
+| climb (full power, below the soft ceiling) | 4.2-5.1 m/s at 24-33 m/s (best ~30 m/s); fades above ~600 m |
+| water take-off, standing start, calm, flaps 10 | 150 m (no cargo) / 168 m (120 kg) / 200 m (300 kg); ~110 m into a 4 m/s wind; lift-off ~21 m/s |
+| idle glide | ~8 deg clean at 30 m/s, ~9 deg with full flaps at 23-25 m/s (the throttled-back prop windmills) |
 | neutral-stick trim speed | ~31 m/s |
 | engine | idle ~700 rpm, max 2300 rpm (governed), ~140 l per tank |
+
+Verified end to end in the sandbox with player inputs (walker + E prompts, Q, U, flap
+keys) and a scripted pilot on `setControls`: walk onto the float, cast off, open the
+door, get in, start, taxi, take off, climb, stall and recover, land on the water, taxi
+back, dock, shut down, get out onto the float, tie up and walk ashore - without a
+single shader compile or console message.
 
 Water: per-station buoyancy from section-area tables (10 stations x 2 chines x 2
 floats), planing/slamming pressure on the V bottoms, keel side force, hump drag,

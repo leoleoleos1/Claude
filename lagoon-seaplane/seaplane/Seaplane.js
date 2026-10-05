@@ -972,7 +972,7 @@ export function createSeaplane(options = {}) {
     st.prevVy = physics.vel.y;
     st.chop = damp(st.chop, o.onWater ? clamp(dvy / 25 + o.slam / 8, 0, 1) : 0, 0.15, dt);
     // stall warning (vane on the wing: airborne only)
-    st.stallWarn = !o.onWater && !o.groundContact && o.airspeed > 6 && o.stall > 0.32;
+    st.stallWarn = !o.onWater && !o.groundContact && o.airspeed > 6 && o.stall > 0.15; // ~3 deg of AoA before the break
   }
 
   function frameEffects(dt) {

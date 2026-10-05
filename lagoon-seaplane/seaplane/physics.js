@@ -555,7 +555,7 @@ export class SeaplanePhysics {
         const fd = fl / DEG;
         a0 += -0.15 * fd * DEG;
         clMax += 0.027 * fd;
-        dCd += 0.0016 * fd;
+        dCd += 0.0032 * fd;
         dCm += -0.0022 * fd;
       }
       s.alpha = alpha;

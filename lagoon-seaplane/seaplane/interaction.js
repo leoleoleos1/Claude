@@ -117,7 +117,8 @@ export class Interaction {
     for (const side of ['L', 'R']) {
       const cleat = P.anchors['cleatBow' + side];
       add({
-        id: 'moor.' + side, local: cleat ? cleat.clone() : L(0, 0, 0), radius: 1.8, viewCone: 0.3, hold: false,
+        // radius from the eye: a standing player's eye is ~1.7 m above the deck
+        id: 'moor.' + side, local: cleat ? cleat.clone() : L(0, 0, 0), radius: 2.5, viewCone: 0.3, hold: false,
         get labelKey() { return P.physics.moor.length ? 'seaplane.moor.castoff' : 'seaplane.moor.tie'; },
         get label() { return P.physics.moor.length ? 'Cast off' : 'Tie up'; },
         enabled: () => !this.seated && !!cleat && !P.physics.detached['float' + side] && (P.physics.moor.length > 0 || this._nearestMooring(cleat) !== null),
@@ -125,7 +126,7 @@ export class Interaction {
       });
       const bow = P.anchors['bow' + side];
       add({
-        id: 'pushoff.' + side, local: bow ? bow.clone() : L(0, 0, 0), radius: 1.8, viewCone: 0.2, hold: true, holdTime: 0, continuous: true,
+        id: 'pushoff.' + side, local: bow ? bow.clone() : L(0, 0, 0), radius: 2.5, viewCone: 0.2, hold: true, holdTime: 0, continuous: true,
         labelKey: 'seaplane.pushoff', label: 'Hold E: Push off the beach',
         enabled: () => !this.seated && !P.physics.detached['float' + side] && (P.physics.out.beached || (P.physics.out.groundContact && P.physics.out.groundSpeed < 1.5)) && !P.physics.moor.length,
         use: () => P.api.pushOff(1), // continuous: the host calls use() every frame while E is held

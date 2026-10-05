@@ -324,6 +324,7 @@ window.__sandbox = {
   spawn,
   setTime(h) { sky.setTime(h); },
   step(seconds, dt = 1 / 60) { for (let t = 0; t < seconds; t += dt) frame(dt); renderer.render(scene, camera); },
+  tick(dt = 1 / 60) { frame(dt); }, // advance one frame without rendering (long scripted runs)
   key(code, down) { canvas.dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', { code, bubbles: true })); },
   input,
   setFov(f) { BASE_FOV = f; },

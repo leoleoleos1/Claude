@@ -201,7 +201,10 @@ export class EngineModel {
     const eta = (0.82 - 0.12 * clamp((airspeed - 38) / 30, 0, 1)) * this.propHealth;
     const capped = E.staticThrust * (w * RPM / E.maxRpm) ** 2 * (1 - 0.25 * clamp(airspeed / 50, 0, 1.3)) * (0.5 + 0.5 * this.propHealth);
     let T = Math.min(eta * pProp / Math.max(airspeed, 1), capped);
-    if (this.state !== 'running') T = Math.min(T, 0) - 0.25 * airspeed * airspeed * 0.05;
+    // throttled back at fine pitch the blades run at a negative angle of attack:
+    // the prop windmills and brakes (steeper idle glides); a stopped prop drags too
+    T -= 1.6 * airspeed * airspeed * (1 - this.load) ** 3 * this.propHealth;
+    if (this.state !== 'running') T = Math.min(T, 0) - 0.45 * airspeed * airspeed * this.propHealth;
     this.thrust = T;
     this.torque = qComb * 0.9 + starterQ;
     // fuel
