@@ -1,0 +1,138 @@
+/* Flapling — page layout. The game itself is drawn on the canvas. */
+
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body {
+  position: fixed;
+  inset: 0;
+  background-color: #15202e;
+  /* Subtle pixel checker pattern around the play area. */
+  background-image:
+    linear-gradient(45deg, rgba(255, 255, 255, 0.025) 25%, transparent 25%, transparent 75%, rgba(255, 255, 255, 0.025) 75%),
+    linear-gradient(45deg, rgba(255, 255, 255, 0.025) 25%, transparent 25%, transparent 75%, rgba(255, 255, 255, 0.025) 75%),
+    radial-gradient(ellipse at center, #22344a 0%, #15202e 70%);
+  background-size: 16px 16px, 16px 16px, 100% 100%;
+  background-position: 0 0, 8px 8px, 0 0;
+  color: #fff6dc;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+}
+
+.stage {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Size is set from JS to the largest 9:16 box that fits the viewport. */
+.game {
+  position: relative;
+  width: 360px;
+  height: 640px;
+  flex: none;
+  overflow: hidden;
+  background: #3d98e0;
+  touch-action: none;
+  box-shadow: 0 0 0 4px #0b121b, 0 18px 48px rgba(0, 0, 0, 0.55);
+}
+
+.game.is-fullbleed { box-shadow: none; }
+
+.screen {
+  display: block;
+  width: 100%;
+  height: 100%;
+  outline: none;
+  cursor: pointer;
+  touch-action: none;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+.screen:focus-visible { box-shadow: inset 0 0 0 3px #ffd23f; }
+
+.hud-btn {
+  position: absolute;
+  top: 2.2%;
+  width: 10%;
+  aspect-ratio: 1 / 1;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.hud-btn--left { left: 3%; }
+.hud-btn--right { right: 3%; }
+
+.hud-btn svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  shape-rendering: crispEdges;
+}
+
+.hud-btn:active svg { transform: translateY(6%); }
+
+.hud-btn .icon-muted { display: none; }
+.hud-btn.is-muted .icon-muted { display: inline; }
+.hud-btn.is-muted .icon-sound { display: none; }
+
+.restart-hit {
+  position: absolute;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  color: transparent;
+  font-size: 1px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.hud-btn:focus-visible,
+.restart-hit:focus-visible {
+  outline: 3px solid #ffffff;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+[hidden] { display: none !important; }
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.noscript {
+  position: absolute;
+  inset: auto 0 45% 0;
+  text-align: center;
+  font-size: 18px;
+}

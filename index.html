@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="description" content="Flapling — a retro pixel-art flapping game. Tap or press Space to fly between the pipes.">
+  <meta name="theme-color" content="#15202e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>Flapling</title>
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <main class="stage">
+    <div id="game" class="game">
+      <canvas id="screen" class="screen" tabindex="0"
+              aria-label="Flapling game. Press Space, the Up Arrow, click or tap to flap. P pauses, M mutes."></canvas>
+
+      <button id="btn-pause" class="hud-btn hud-btn--left" type="button" aria-label="Pause" hidden>
+        <svg viewBox="0 0 18 18" aria-hidden="true" focusable="false">
+          <rect x="1" y="0" width="16" height="18" fill="#2b1d14"/><rect x="0" y="1" width="18" height="16" fill="#2b1d14"/>
+          <rect x="2" y="2" width="14" height="14" fill="#fff6dc"/><rect x="2" y="13" width="14" height="3" fill="#e8c98a"/>
+          <rect x="5" y="5" width="3" height="8" fill="#2b1d14"/><rect x="10" y="5" width="3" height="8" fill="#2b1d14"/>
+        </svg>
+      </button>
+
+      <button id="btn-mute" class="hud-btn hud-btn--right" type="button" aria-label="Mute sound" aria-pressed="false">
+        <svg viewBox="0 0 18 18" aria-hidden="true" focusable="false">
+          <rect x="1" y="0" width="16" height="18" fill="#2b1d14"/><rect x="0" y="1" width="18" height="16" fill="#2b1d14"/>
+          <rect x="2" y="2" width="14" height="14" fill="#fff6dc"/><rect x="2" y="13" width="14" height="3" fill="#e8c98a"/>
+          <rect x="3" y="7" width="2" height="4" fill="#2b1d14"/>
+          <rect x="5" y="6" width="1" height="6" fill="#2b1d14"/><rect x="6" y="5" width="1" height="8" fill="#2b1d14"/>
+          <rect x="7" y="4" width="1" height="10" fill="#2b1d14"/>
+          <g class="icon-sound">
+            <rect x="9" y="7" width="1" height="4" fill="#2b1d14"/>
+            <rect x="11" y="5" width="1" height="2" fill="#2b1d14"/><rect x="12" y="7" width="1" height="4" fill="#2b1d14"/><rect x="11" y="11" width="1" height="2" fill="#2b1d14"/>
+            <rect x="13" y="4" width="1" height="1" fill="#2b1d14"/><rect x="14" y="5" width="1" height="8" fill="#2b1d14"/><rect x="13" y="13" width="1" height="1" fill="#2b1d14"/>
+          </g>
+          <g class="icon-muted">
+            <rect x="9" y="6" width="1" height="1" fill="#e83b3b"/><rect x="10" y="7" width="1" height="1" fill="#e83b3b"/>
+            <rect x="11" y="8" width="2" height="2" fill="#e83b3b"/><rect x="13" y="7" width="1" height="1" fill="#e83b3b"/>
+            <rect x="14" y="6" width="1" height="1" fill="#e83b3b"/><rect x="10" y="10" width="1" height="1" fill="#e83b3b"/>
+            <rect x="9" y="11" width="1" height="1" fill="#e83b3b"/><rect x="13" y="10" width="1" height="1" fill="#e83b3b"/>
+            <rect x="14" y="11" width="1" height="1" fill="#e83b3b"/>
+          </g>
+        </svg>
+      </button>
+
+      <!-- Transparent, accessible hit area over the restart button drawn on the canvas. -->
+      <button id="btn-restart" class="restart-hit" type="button" hidden>Restart</button>
+
+      <p id="status" class="visually-hidden" role="status" aria-live="polite"></p>
+    </div>
+    <noscript><p class="noscript">Flapling needs JavaScript to run.</p></noscript>
+  </main>
+
+  <!-- Plain scripts (no modules) so the game also runs straight from file://. Order matters. -->
+  <script src="js/config.js"></script>
+  <script src="js/util.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/font.js"></script>
+  <script src="js/sprites.js"></script>
+  <script src="js/world.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/renderer.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
