@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lagoon Seaplane — sandbox</title>
+  <link rel="icon" href="data:,">
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #0b1016; font: 13px/1.35 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color: #e8e4d8; }
+    #view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; outline: none; }
+    #ui { position: fixed; inset: 0; pointer-events: none; }
+    .panel { position: absolute; pointer-events: auto; background: rgba(12, 16, 20, 0.78); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 10px 12px; backdrop-filter: blur(4px); }
+    .panel h3 { margin: 0 0 6px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #f0c040; }
+    .panel label { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 3px 0; }
+    .panel input[type=range] { width: 120px; }
+    .panel button, .panel select { background: #26303a; color: #e8e4d8; border: 1px solid #3c4955; border-radius: 4px; padding: 3px 8px; margin: 2px 2px 2px 0; cursor: pointer; font: inherit; }
+    .panel button:hover { background: #33414d; }
+    #settings { top: 10px; right: 10px; width: 230px; }
+    #help { left: 10px; bottom: 10px; max-width: 420px; color: #cfc9b8; }
+    #help kbd { background: #2b333b; border: 1px solid #45515c; border-radius: 3px; padding: 0 4px; font-size: 11px; }
+    #prompt { position: absolute; left: 50%; top: 56%; transform: translateX(-50%); text-align: center; text-shadow: 0 1px 3px #000; font-size: 15px; color: #fff; }
+    #prompt .bar { width: 140px; height: 4px; margin: 6px auto 0; background: rgba(255,255,255,0.2); border-radius: 2px; overflow: hidden; }
+    #prompt .bar i { display: block; height: 100%; width: 0; background: #f0c040; }
+    #crosshair { position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px; border-radius: 50%; background: rgba(255,255,255,0.75); box-shadow: 0 0 2px #000; }
+    #hud { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; gap: 14px; font: 12px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; color: #e9f2d0; text-shadow: 0 1px 2px #000; }
+    #hud .warn { color: #ff6040; }
+    #hint { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); color: #ffe7a0; text-shadow: 0 1px 2px #000; }
+    #debug { top: 10px; left: 10px; width: 300px; max-height: calc(100% - 40px); overflow: auto; font: 11px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace; display: none; }
+    #loading { position: absolute; inset: 0; display: grid; place-items: center; background: #0b1016; color: #c9c2ae; font-size: 14px; pointer-events: none; transition: opacity .4s; }
+  </style>
+  <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"}}</script>
+</head>
+<body>
+  <canvas id="view" tabindex="0"></canvas>
+  <div id="ui">
+    <div id="crosshair"></div>
+    <div id="prompt"></div>
+    <div id="hint"></div>
+    <div id="hud"></div>
+    <div id="settings" class="panel"></div>
+    <div id="help" class="panel"></div>
+    <div id="debug" class="panel"></div>
+    <div id="loading">Generating seaplane…</div>
+  </div>
+  <script type="module" src="./sandbox/main.js"></script>
+</body>
+</html>
