@@ -8,9 +8,10 @@ import { lathe, curve, rng, v3, KIND } from './geom.js';
 export const PROP_BEND_GROUP = 15;
 const R = DIM.propRadius;
 
-const chordAt = curve([[0.12, 0.1], [0.2, 0.12], [0.28, 0.17], [0.36, 0.23], [0.45, 0.255], [0.6, 0.265], [0.75, 0.262], [0.9, 0.252], [1.05, 0.235], [1.15, 0.215], [1.22, 0.19], [1.27, 0.15], [1.295, 0.095], [1.3, 0.04]]);
+// paddle blades: narrow round shank, widest around 70 % radius, broad rounded tip
+const chordAt = curve([[0.12, 0.09], [0.2, 0.105], [0.28, 0.16], [0.36, 0.225], [0.45, 0.27], [0.6, 0.3], [0.75, 0.312], [0.9, 0.31], [1.05, 0.298], [1.15, 0.282], [1.22, 0.258], [1.26, 0.225], [1.285, 0.17], [1.3, 0.06]]);
 const thickAt = curve([[0.12, 1], [0.24, 0.8], [0.34, 0.32], [0.45, 0.2], [0.6, 0.14], [0.9, 0.1], [1.3, 0.08]]);
-const PITCH = 2.0;
+const PITCH = 1.3; // fine pitch (blades at rest), faces show from the front quarters
 
 export function buildProp(ctx) {
   const { lod } = ctx;
@@ -51,7 +52,7 @@ export function buildProp(ctx) {
     : lod === 1 ? [0.15, 0.36, 0.7, 1.05, 1.22, 1.3] : [0.2, 0.7, 1.3];
   const ns = lod === 0 ? 22 : lod === 1 ? 10 : 6;
   const af = [0, 0];
-  const black = new THREE.Color(0x121212), yellow = new THREE.Color(0xd9a414), red = new THREE.Color(0x9b1c13);
+  const black = new THREE.Color(0x221f1b), yellow = new THREE.Color(0xc9900f), red = new THREE.Color(0x8a1a12);
   for (let k = 0; k < 3; k++) {
     const phi = (k / 3) * Math.PI * 2;
     const start = b.vertexCount;
@@ -62,7 +63,7 @@ export function buildProp(ctx) {
       const beta = Math.atan(PITCH / (2 * Math.PI * r));
       const ax = v3(Math.cos(beta), 0, -Math.sin(beta)); // TE -> LE
       const nn = v3(-Math.sin(beta), 0, -Math.cos(beta)); // camber side (forward)
-      const round = THREE.MathUtils.smoothstep(r, 0.34, 0.22);
+      const round = 1 - THREE.MathUtils.smoothstep(r, 0.22, 0.34); // round shank -> airfoil
       const tipPaint = r > R - 0.115;
       const stripe = r > R - 0.15 && r <= R - 0.125;
       for (let j = 0; j <= ns; j++) {
@@ -79,7 +80,7 @@ export function buildProp(ctx) {
         const col = tipPaint ? yellow : stripe ? red : black;
         b.cur.color = [col.r, col.g, col.b];
         const le = Math.abs(s - 0.5) < 0.12;
-        b.cur.aMat = [tipPaint ? 0.5 : 0.42, 0.25, KIND.PAINTED, le ? 0.9 : 0.35];
+        b.cur.aMat = [tipPaint ? 0.6 : 0.62, 0.25, KIND.PAINTED, le ? 1.0 : 0.85];
         // bend group: tip of blade 0
         if (k === 0 && r > 0.85) b.cur.aWob = [0, 0.85, 0, PROP_BEND_GROUP + Math.min((r - 0.85) / 0.45, 0.999)];
         else b.cur.aWob = [0, 0, 0, 0];

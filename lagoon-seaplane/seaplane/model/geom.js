@@ -21,7 +21,7 @@ export const LAYOUTS = {
 // Surface kinds understood by the hardware/interior shader (aMat.z).
 export const KIND = {
   PAINTED: 0, METAL: 1, RUST: 2, RUBBER: 3, CANVAS: 4, ROPE: 5, LEATHER: 6,
-  WOOD: 7, PLASTIC: 8, LAMP: 9, FABRIC: 10, TREAD: 11, CHROME: 12, STRAP: 13,
+  WOOD: 7, PLASTIC: 8, LAMP: 9, FABRIC: 10, TREAD: 11, CHROME: 12, STRAP: 13, EXHAUST: 14,
 };
 
 export class GeoBuilder {

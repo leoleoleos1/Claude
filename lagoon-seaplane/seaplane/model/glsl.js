@@ -72,7 +72,7 @@ float sp_cell2(vec2 p) {
 // beside every seam (some lines doubled). Returns height (m) of seams, rivets
 // and oil-canning; writes the distance to the nearest seam and rivet.
 export const GLSL_PANEL = /* glsl */ `
-const vec2 SP_PANEL = vec2(0.5, 0.3);
+const vec2 SP_PANEL = vec2(0.82, 0.46);
 const float SP_RIVET = 0.042;
 float sp_panelHeight(vec2 q, float fineFade, out float dSeam, out float dRivet, out float panelId) {
   vec2 c = q / SP_PANEL;

@@ -129,7 +129,7 @@ void main() {
   vec3 col = mix(body, refl, fres) + uSunColor * spec * (1.0 - uNight);
   // foam: shoreline and steep crests
   float fn = o_n(vW.xz * 0.9 + uTime * 0.2) * 0.6 + o_n(vW.xz * 3.3 - uTime * 0.3) * 0.4;
-  float foam = smoothstep(0.45, 0.0, depth) * smoothstep(0.35, 0.65, fn);
+  float foam = (1.0 - smoothstep(0.0, 0.45, depth)) * smoothstep(0.35, 0.65, fn);
   foam += smoothstep(0.55, 0.9, vCrest) * smoothstep(0.5, 0.75, fn);
   col = mix(col, vec3(0.85, 0.88, 0.86) * (0.3 + 0.8 * sunL), clamp(foam, 0.0, 1.0) * 0.8);
   float alpha = clamp(1.0 - exp(-depth * 1.4), 0.0, 1.0);

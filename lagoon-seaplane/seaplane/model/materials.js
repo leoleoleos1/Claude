@@ -102,8 +102,8 @@ export function createPaintMaterial(U, maps, { detail = true } = {}) {
   vec2 spQ = vSpPanel;
   vec2 spQx = dFdx(spQ), spQy = dFdy(spQ);
   float spPx = max(length(spQx), length(spQy));
-  float spFine = smoothstep(0.0045, 0.0015, spPx) * spDetailMask;
-  float spMid = smoothstep(0.03, 0.008, spPx);
+  float spFine = (1.0 - smoothstep(0.0015, 0.0045, spPx)) * spDetailMask;
+  float spMid = 1.0 - smoothstep(0.008, 0.03, spPx);
   float dS0, dR0, pid0, dS1, dR1, pid1, dS2, dR2, pid2;
   float spH0 = sp_panelHeight(spQ, spFine, dS0, dR0, pid0);
   float spH1 = sp_panelHeight(spQ + spQx, spFine, dS1, dR1, pid1);
@@ -113,14 +113,16 @@ export function createPaintMaterial(U, maps, { detail = true } = {}) {
   // chipped paint: primer ring, bare metal core
   float spN = sp_fbm2(spQ * 34.0 + 7.0, 3) + 0.32 * sp_noise2(spQ * 190.0) - 0.16;
   float spSeamW = ((1.0 - smoothstep(0.0, 0.025, dS0)) * 0.2 + (1.0 - smoothstep(0.0, 0.009, dR0)) * 0.2) * spDetailMask;
-  float spT = 1.16 - (spWear + spSeamW) * 0.85;
+  float spT = 1.22 - (spWear + spSeamW) * 0.85;
+  // chips show dark primer on the bright paint, bare aluminium on the dark paint
+  float spBright = smoothstep(0.035, 0.1, dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11)));
   float spFw = fwidth(spN) * 0.75 + 0.002;
   float spChip = smoothstep(spT - spFw, spT + spFw, spN);
   float spBare = smoothstep(spT + 0.11 - spFw, spT + 0.11 + spFw, spN);
   float spFar = smoothstep(0.005, 0.015, spPx);
-  float spCov = clamp((spWear - 0.3) * 0.6, 0.0, 0.45);
+  float spCov = clamp((spWear - 0.3) * 0.35, 0.0, 0.25);
   spChip = mix(spChip, spCov, spFar);
-  spBare = mix(spBare, spCov * 0.3, spFar);
+  spBare = mix(spBare, spCov * 0.3, spFar) * mix(1.0, 0.2, spBright);
   vec3 spPrimer = vec3(0.04, 0.036, 0.03) * (0.8 + 0.4 * sp_noise2(spQ * 40.0));
   vec3 spMetal = vec3(0.56, 0.56, 0.54) * (0.85 + 0.25 * sp_noise2(spQ * 90.0));
   diffuseColor.rgb = mix(diffuseColor.rgb, spPrimer, spChip);
@@ -199,7 +201,7 @@ export function createHardMaterial(U, { detail = true, name = 'seaplane.hard' } 
   ${detail ? `
   vec2 spU = vSpUv;
   float spPx = max(length(dFdx(spO)), length(dFdy(spO)));
-  float spFine = smoothstep(0.006, 0.002, spPx);
+  float spFine = 1.0 - smoothstep(0.002, 0.006, spPx);
   float spD = sp_fbm3(spO * 3.1, 3);
   if (spKind == ${KIND.CANVAS.toFixed(1)}) {
     float weave = sin(spU.x * 2400.0) * sin(spU.y * 2400.0);
@@ -253,6 +255,21 @@ export function createHardMaterial(U, { detail = true, name = 'seaplane.hard' } 
     float w = sin(spU.x * 900.0);
     spH += w * 0.0001 * spFine;
     diffuseColor.rgb *= 0.85 + 0.15 * w + 0.25 * sp_noise3(spO * 12.0);
+  } else if (spKind == ${KIND.EXHAUST.toFixed(1)}) {
+    // heat-discoloured exhaust steel: bronze / straw / blued bands along the pipe,
+    // flaking rust patches and soot (grime) toward the open ends
+    float band = sp_noise3(spO * vec3(2.0, 2.0, 7.0) + 3.0);
+    float t = sp_fbm3(spO * 5.0 + 1.0, 3);
+    vec3 straw = vec3(0.15, 0.095, 0.045), bronze = vec3(0.095, 0.055, 0.028), blued = vec3(0.04, 0.04, 0.062);
+    vec3 heat = mix(mix(straw, bronze, smoothstep(0.3, 0.6, band)), blued, smoothstep(0.62, 0.85, band) * 0.8);
+    diffuseColor.rgb = mix(diffuseColor.rgb, heat, 0.8);
+    float flake = smoothstep(0.5, 0.66, sp_fbm3(spO * 14.0 + 7.0, 3) + (t - 0.5) * 0.4);
+    vec3 rustC = mix(vec3(0.12, 0.04, 0.012), vec3(0.3, 0.11, 0.03), sp_noise3(spO * 37.0));
+    diffuseColor.rgb = mix(diffuseColor.rgb, rustC, flake * 0.85);
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.015, 0.012, 0.01), smoothstep(0.55, 0.95, spGrime * 0.7 + (spD - 0.5) + t * 0.4) * 0.75);
+    metalnessFactor = mix(0.75, 0.1, flake);
+    roughnessFactor = mix(0.5 + 0.25 * t, 0.9, flake);
+    spH += flake * 0.0006 * spFine + (t - 0.5) * 0.0004 * spFine;
   } else if (spKind == ${KIND.CHROME.toFixed(1)}) {
     float ox = sp_fbm3(spO * 7.0, 4);
     float rs = smoothstep(0.62, 0.72, sp_fbm3(spO * 16.0 + 5.0, 3));
@@ -266,7 +283,8 @@ export function createHardMaterial(U, { detail = true, name = 'seaplane.hard' } 
   } else {
     // painted / metal / plastic: scratches, smudges, chips
     float scr = smoothstep(0.92, 0.98, sp_noise3(spO * vec3(160.0, 6.0, 160.0)));
-    float chipN = sp_fbm3(spO * 52.0, 3);
+    // chips cluster in scuffed zones (low-frequency term)
+    float chipN = sp_fbm3(spO * 52.0, 3) * 0.75 + sp_fbm3(spO * 8.0 + 3.0, 2) * 0.35 - 0.04;
     float chip = (spKind == ${KIND.PAINTED.toFixed(1)}) ? smoothstep(0.8 - spGrime * 0.14, 0.83 - spGrime * 0.14, chipN) : 0.0;
     diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.5, 0.5, 0.48), chip);
     metalnessFactor = mix(metalnessFactor, 1.0, chip);

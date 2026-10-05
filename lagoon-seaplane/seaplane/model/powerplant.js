@@ -108,9 +108,9 @@ export function buildPowerplant(ctx) {
   const cowlX = (z, y) => { const sec = fuselageSection(z); return sideXAt(sec, y); };
   for (const sx of [1, -1]) {
     const pipes = [
-      { y: 2.71, r: 0.05, xo: 0.0, end: 0.02, endY: 2.64 },
-      { y: 2.8, r: 0.043, xo: -0.06, end: -0.04, endY: 2.76 },
-      { y: 2.6, r: 0.04, xo: 0.02, end: -0.12, endY: 2.52 },
+      { y: 2.71, r: 0.064, xo: 0.0, end: 0.02, endY: 2.63 },
+      { y: 2.83, r: 0.056, xo: -0.07, end: -0.04, endY: 2.78 },
+      { y: 2.57, r: 0.052, xo: 0.03, end: -0.12, endY: 2.49 },
     ];
     pipes.forEach((p, i) => {
       const pts = [E(sx * 0.4, 0.28 + i * 0.03, 0.2), E(sx * 0.5, p.y - AXIS_Y - 0.04, 0.3)];
@@ -121,8 +121,8 @@ export function buildPowerplant(ctx) {
       const xe = cowlX(p.end, p.endY) + p.r + 0.015;
       pts.push(v3(sx * (xe - 0.02), (p.y + p.endY) / 2, p.end - 0.1));
       pts.push(v3(sx * xe, p.endY, p.end));
-      hard.setColor(i === 0 ? 0x5a3c26 : 0x45403a).setMat(0.72, 0.65, KIND.RUST, 0.9);
-      tube(hard, pts, p.r, { sides: lod === 0 ? 10 : 5 });
+      hard.setColor(i === 0 ? 0x6a4a30 : 0x5b4634).setMat(0.45, 0.85, KIND.EXHAUST, 0.75);
+      tube(hard, pts, p.r, { sides: lod === 0 ? 12 : 5 });
       // open pipe end: thin lip + sooty inside
       const tip = pts[pts.length - 1], prev = pts[pts.length - 2];
       const dir = new THREE.Vector3().subVectors(tip, prev).normalize();
@@ -134,7 +134,9 @@ export function buildPowerplant(ctx) {
       if (lod === 0) {
         hard.setColor(0x2a2725).setMat(0.5, 0.8, KIND.METAL, 0.6);
         const c = pts[3];
-        hard.append(new THREE.TorusGeometry(p.r + 0.006, 0.006, 4, 10), matAlong(c, c.clone().add(v3(0, 0, 1))));
+        hard.append(new THREE.TorusGeometry(p.r + 0.006, 0.007, 4, 12), matAlong(c, c.clone().add(v3(0, 0, 1))));
+        const c2 = pts[5];
+        hard.append(new THREE.TorusGeometry(p.r + 0.006, 0.007, 4, 12), matAlong(c2, c2.clone().add(v3(0, 0, 1))));
       }
     });
   }

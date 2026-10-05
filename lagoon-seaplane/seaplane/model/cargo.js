@@ -3,13 +3,14 @@
 // lashings. Soft items carry spring-wobble attributes (pivot, group, weight).
 import * as THREE from 'three';
 import { DIM, fuselageSection } from './dims.js';
-import { tube, lathe, box, roundedBox, mat, matAlong, rng, v3, KIND } from './geom.js';
+import { grid, tube, lathe, box, roundedBox, mat, matAlong, rng, v3, KIND } from './geom.js';
 import { wingPoint, sForC } from './wing.js';
 
 // Wobble groups (shared with the runtime springs in the materials module).
 export const WOB = { RACK: 1, STRUT_R: 2, STRUT_L: 3, UNDERWING: 4, SIDEBAGS: 5, ANTENNA: 6, ROPES: 7 };
 
 const OLIVES = [0x4d5232, 0x575a36, 0x44482c, 0x5d5a3a, 0x4a4f35];
+const KHAKI = [0x6b6c4a, 0x75744f, 0x63664a, 0x6e6a48];
 
 // Assign wobble attributes to vertices [start, end) relative to a pivot.
 function wobble(b, start, pivot, group, reach) {
@@ -63,26 +64,46 @@ function duffel(b, m, L, r, color, rand, lod, strapColor = 0x2e2f22) {
   return start;
 }
 
-// Rectangular canvas pouch with a lid flap and buckle straps; centred, local axes.
+// Soft canvas pouch (rounded superellipsoid with folds, sag and a bulging face),
+// lid flap and buckle straps; centred, local axes (x width, y height, z depth).
+const sgnPow = (a, e) => Math.sign(a) * Math.abs(a) ** e;
 function pouch(b, m, sx, sy, sz, color, rand, lod) {
   const start = b.vertexCount;
-  b.setColor(color).setMat(0.9, 0, KIND.CANVAS, 0.5 + rand() * 0.3);
-  const seg = lod === 0 ? 3 : 1;
-  roundedBox(b, sx, sy, sz, Math.min(sx, sy, sz) * 0.32, null, seg);
-  // bulge
-  const P = b.position;
-  for (let v = start; v < b.vertexCount; v++) {
-    const ux = P[v * 3] / (sx / 2), uy = P[v * 3 + 1] / (sy / 2);
-    P[v * 3 + 2] *= 1 + 0.18 * (1 - ux * ux) * (1 - uy * uy * 0.5);
+  b.setColor(color).setMat(0.93, 0, KIND.CANVAS, 0.5 + rand() * 0.3);
+  const ns = lod === 0 ? 18 : 8, nt = lod === 0 ? 10 : 5;
+  const ph = rand() * 10, ph2 = rand() * 10;
+  const per = 2 * (sx + sz);
+  const g = grid(b, ns, nt, (s, t, out) => {
+    const u = s * Math.PI * 2, v = (t - 0.5) * Math.PI;
+    const cv = Math.cos(v), sv = Math.sin(v);
+    let x = (sx / 2) * sgnPow(cv, 0.42) * sgnPow(Math.cos(u), 0.32);
+    let y = (sy / 2) * sgnPow(sv, 0.42);
+    let z = (sz / 2) * sgnPow(cv, 0.42) * sgnPow(Math.sin(u), 0.32);
+    const ux = (2 * x) / sx, uy = (2 * y) / sy;
+    z *= 1 + 0.16 * (1 - ux * ux) * (1 - uy * uy * 0.5); // stuffed: faces bulge
+    y -= 0.05 * sy * (1 - ux * ux) * Math.max(-uy, 0); // contents sag to the bottom
+    // folds and creases across the faces
+    const w = (0.008 * Math.sin(u * 6 + v * 3 + ph) * Math.sin(v * 5 + ph2) + 0.004 * Math.sin(u * 13 + v * 9 + ph2)) * cv;
+    const l = Math.hypot(x, y, z) || 1;
+    out.p.set(x + (x / l) * w, y + (y / l) * w, z + (z / l) * w);
+    out.u = s * per; out.v = t * sy * 1.6;
+  }, { closedS: true, flip: true }); // (s, t) runs clockwise seen from outside
+  // poles: the latitude rows collapse to a point
+  const N = b.normal;
+  for (let i = 0; i < g.cols; i++) {
+    const bot = g.start + i * g.rows, top = bot + g.rows - 1;
+    N[bot * 3] = 0; N[bot * 3 + 1] = -1; N[bot * 3 + 2] = 0;
+    N[top * 3] = 0; N[top * 3 + 1] = 1; N[top * 3 + 2] = 0;
   }
-  // lid
-  b.setColor(new THREE.Color(color).multiplyScalar(0.92)).setMat(0.9, 0, KIND.CANVAS, 0.6);
-  roundedBox(b, sx * 1.02, sy * 0.32, sz * 0.62, 0.02, mat(0, sy * 0.36, sz * 0.22), seg);
+  // lid flap over the top front
+  const seg = lod === 0 ? 2 : 1;
+  b.setColor(new THREE.Color(color).multiplyScalar(0.9)).setMat(0.93, 0, KIND.CANVAS, 0.6);
+  roundedBox(b, sx * 0.98, sy * 0.3, sz * 0.5, 0.025, mat(0, sy * 0.33, sz * 0.3, -0.12, 0, 0), seg);
   // straps + buckles
   b.setColor(0x2b2c20).setMat(0.85, 0, KIND.STRAP, 0.5);
-  for (const fx of [-0.25, 0.25]) box(b, 0.035, sy * 0.62, 0.006, mat(fx * sx, sy * 0.12, sz * 0.62));
+  for (const fx of [-0.25, 0.25]) box(b, 0.035, sy * 0.66, 0.006, mat(fx * sx, sy * 0.1, sz * 0.6));
   b.setColor(0x6e6a60).setMat(0.4, 1, KIND.METAL, 0.4);
-  for (const fx of [-0.25, 0.25]) box(b, 0.045, 0.03, 0.01, mat(fx * sx, -sy * 0.12, sz * 0.63));
+  for (const fx of [-0.25, 0.25]) box(b, 0.045, 0.03, 0.01, mat(fx * sx, -sy * 0.14, sz * 0.61));
   b.transform(start, m);
   return start;
 }
@@ -113,12 +134,12 @@ export function buildCargo(ctx) {
   if (lod >= 2) {
     // single lump on the roof for the far silhouette
     hard.setColor(0x4a4e31).setMat(0.9, 0, KIND.CANVAS, 0.5);
-    roundedBox(hard, 0.9, 0.35, 1.5, 0.12, mat(0, 3.85, 1.55), 1);
+    roundedBox(hard, 1.1, 0.45, 1.55, 0.14, mat(0, 3.9, 1.6), 1);
     return { anchors };
   }
   // -------- roof rack --------
   const rackY = 3.7;
-  const z0 = 0.86, z1 = 2.38, xr = 0.46;
+  const z0 = 0.84, z1 = 2.42, xr = 0.56;
   hard.setColor(0x2b2b27).setMat(0.55, 0.7, KIND.PAINTED, 0.7);
   const rails = [];
   for (const sx of [-1, 1]) rails.push([v3(sx * xr, rackY, z0), v3(sx * xr, rackY, z1)]);
@@ -140,9 +161,9 @@ export function buildCargo(ctx) {
   }
   // bags on the rack
   const bags = [
-    { x: -0.2, z: 1.62, L: 0.95, r: 0.17 },
-    { x: 0.1, z: 1.5, L: 1.05, r: 0.18 },
-    { x: 0.33, z: 1.42, L: 0.7, r: 0.13 },
+    { x: -0.29, z: 1.66, L: 1.02, r: 0.21 },
+    { x: 0.11, z: 1.55, L: 1.12, r: 0.22 },
+    { x: 0.42, z: 1.45, L: 0.78, r: 0.15 },
   ];
   bags.forEach((bg, i) => {
     const m = mat(bg.x, rackY + bg.r * 0.78 + 0.016, bg.z, 0, (rand() - 0.5) * 0.12, 0);
@@ -151,40 +172,40 @@ export function buildCargo(ctx) {
   });
   // second layer duffel lying across
   {
-    const m = mat(0.0, rackY + 0.38, 1.95, 0, Math.PI / 2 + 0.08, 0.04);
-    const st = duffel(hard, m, 0.8, 0.13, OLIVES[3], rand, lod);
+    const m = mat(-0.05, rackY + 0.47, 1.98, 0, Math.PI / 2 + 0.08, 0.04);
+    const st = duffel(hard, m, 0.92, 0.16, OLIVES[3], rand, lod);
     wobble(hard, st, v3(0, rackY, 1.95), WOB.RACK, 0.7);
   }
   // red jerrycan at the rear right, standing
-  jerrycan(hard, mat(0.3, rackY + 0.24, 2.18, 0, 0.12, 0), 0x9e1d16, lod);
+  jerrycan(hard, mat(0.36, rackY + 0.24, 2.2, 0, 0.12, 0), 0x9e1d16, lod);
   // radio case at the front left with antennas
   {
-    const c = v3(-0.26, rackY + 0.16, 1.02);
-    hard.setColor(0x8f8c80).setMat(0.45, 0.8, KIND.METAL, 0.7);
-    roundedBox(hard, 0.34, 0.3, 0.28, 0.025, mat(c.x, c.y, c.z, 0, -0.08, 0), lod === 0 ? 2 : 1);
+    const c = v3(-0.3, rackY + 0.2, 1.04);
+    hard.setColor(0xb3afa2).setMat(0.5, 0.6, KIND.PAINTED, 0.75);
+    roundedBox(hard, 0.42, 0.38, 0.34, 0.03, mat(c.x, c.y, c.z, 0, -0.08, 0), lod === 0 ? 2 : 1);
     hard.setColor(0x3b3a35).setMat(0.4, 0.8, KIND.METAL, 0.5);
-    for (const sx of [-1, 1]) box(hard, 0.03, 0.05, 0.02, mat(c.x + sx * 0.1, c.y + 0.05, c.z - 0.145, 0, -0.08, 0));
-    tube(hard, [v3(c.x - 0.08, c.y + 0.15, c.z), v3(c.x - 0.08, c.y + 0.2, c.z), v3(c.x + 0.08, c.y + 0.2, c.z), v3(c.x + 0.08, c.y + 0.15, c.z)], 0.01, { sides: 5 });
+    for (const sx of [-1, 1]) box(hard, 0.03, 0.05, 0.02, mat(c.x + sx * 0.12, c.y + 0.07, c.z - 0.175, 0, -0.08, 0));
+    tube(hard, [v3(c.x - 0.09, c.y + 0.19, c.z), v3(c.x - 0.09, c.y + 0.25, c.z), v3(c.x + 0.09, c.y + 0.25, c.z), v3(c.x + 0.09, c.y + 0.19, c.z)], 0.011, { sides: 5 });
     // whip & stub antennas from the radio case
     hard.setColor(0x1b1b1a).setMat(0.4, 0.6, KIND.METAL, 0.3);
-    const ab = v3(c.x - 0.1, c.y + 0.15, c.z + 0.08);
+    const ab = v3(c.x - 0.12, c.y + 0.19, c.z + 0.09);
     lathe(hard, [[0.015, 0], [0.012, 0.05], [0.006, 0.06]], 6, mat(ab.x, ab.y, ab.z, -Math.PI / 2, 0, 0));
     const st = hard.vertexCount;
     tube(hard, [ab.clone().add(v3(0, 0.05, 0)), ab.clone().add(v3(0, 0.6, 0.06)), ab.clone().add(v3(0, 1.1, 0.16))], (f) => 0.005 - f * 0.003, { sides: 4 });
     wobble(hard, st, ab, WOB.ANTENNA, 1.1);
     const st2 = hard.vertexCount;
-    tube(hard, [v3(c.x + 0.1, c.y + 0.15, c.z + 0.06), v3(c.x + 0.1, c.y + 0.42, c.z + 0.08)], 0.008, { sides: 4 });
-    wobble(hard, st2, v3(c.x + 0.1, c.y + 0.15, c.z + 0.06), WOB.ANTENNA, 0.6);
+    tube(hard, [v3(c.x + 0.12, c.y + 0.19, c.z + 0.07), v3(c.x + 0.12, c.y + 0.48, c.z + 0.09)], 0.008, { sides: 4 });
+    wobble(hard, st2, v3(c.x + 0.12, c.y + 0.19, c.z + 0.07), WOB.ANTENNA, 0.6);
     anchors.radio = c.clone();
   }
   // lashing ropes over the rack load
   hard.setColor(0x8c7a55).setMat(0.92, 0, KIND.ROPE, 0.6);
-  for (const z of [1.2, 1.7, 2.05]) {
+  for (const [z, top] of [[1.25, 0.45], [1.72, 0.46], [1.98, 0.64]]) {
     const st = hard.vertexCount;
-    tube(hard, [v3(-xr, rackY + 0.02, z), v3(-0.36, rackY + 0.3, z + 0.02), v3(-0.1, rackY + 0.4, z), v3(0.15, rackY + 0.39, z - 0.02), v3(0.38, rackY + 0.27, z), v3(xr, rackY + 0.02, z)], 0.009, { sides: 4 });
+    tube(hard, [v3(-xr, rackY + 0.02, z), v3(-0.46, rackY + top * 0.72, z + 0.02), v3(-0.2, rackY + top, z), v3(0.15, rackY + top - 0.01, z - 0.02), v3(0.46, rackY + top * 0.66, z), v3(xr, rackY + 0.02, z)], 0.01, { sides: 4 });
     wobble(hard, st, v3(0, rackY, z), WOB.RACK, 1.2);
   }
-  tube(hard, [v3(-xr, rackY + 0.05, z0 + 0.1), v3(-0.2, rackY + 0.37, 1.1), v3(0.05, rackY + 0.39, 1.6), v3(0.25, rackY + 0.36, 2.0), v3(xr, rackY + 0.05, z1 - 0.1)], 0.009, { sides: 4 });
+  tube(hard, [v3(-xr, rackY + 0.05, z0 + 0.1), v3(-0.25, rackY + 0.43, 1.15), v3(0.05, rackY + 0.47, 1.6), v3(0.25, rackY + 0.6, 1.98), v3(xr, rackY + 0.05, z1 - 0.1)], 0.01, { sides: 4 });
 
   // -------- bags on the wing struts --------
   const sr = anchors.strut = {};
@@ -217,9 +238,9 @@ export function buildCargo(ctx) {
     wobble(hard, st, p, group, 0.5);
     return c;
   };
-  sr.bagR1 = strutBag(1, 0.68, [0.36, 0.42, 0.18], WOB.STRUT_R, OLIVES[0]);
-  sr.bagR2 = strutBag(1, 0.36, [0.26, 0.3, 0.14], WOB.STRUT_R, OLIVES[2]);
-  sr.bagL1 = strutBag(-1, 0.6, [0.32, 0.38, 0.16], WOB.STRUT_L, OLIVES[1]);
+  sr.bagR1 = strutBag(1, 0.68, [0.36, 0.42, 0.18], WOB.STRUT_R, KHAKI[0]);
+  sr.bagR2 = strutBag(1, 0.36, [0.26, 0.3, 0.14], WOB.STRUT_R, KHAKI[2]);
+  sr.bagL1 = strutBag(-1, 0.6, [0.32, 0.38, 0.16], WOB.STRUT_L, KHAKI[1]);
 
   // -------- bags hanging under the right wing --------
   {
@@ -235,9 +256,9 @@ export function buildCargo(ctx) {
       wobble(hard, st, top, WOB.UNDERWING, 0.6);
       return c;
     };
-    anchors.underwingBag = hangBag(3.3, 1.25, [0.6, 0.34, 0.3], OLIVES[4]);
-    hangBag(3.95, 1.3, [0.36, 0.26, 0.22], OLIVES[1]);
-    hangBag(-3.4, 1.28, [0.42, 0.28, 0.24], OLIVES[3]);
+    anchors.underwingBag = hangBag(3.3, 1.25, [0.62, 0.36, 0.32], KHAKI[3]);
+    hangBag(3.95, 1.3, [0.38, 0.28, 0.24], KHAKI[1]);
+    hangBag(-3.4, 1.28, [0.44, 0.3, 0.26], KHAKI[0]);
   }
 
   // -------- duffels along the rear fuselage (right side, behind the cargo door) --------

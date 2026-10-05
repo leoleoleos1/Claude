@@ -199,13 +199,15 @@ export function buildFuselage(ctx) {
     prof.reverse();
     const st = lathe(paint, prof.map(([r, z]) => [r, z]), lod === 0 ? 48 : 16, mat(0, D.thrustY, 0), { flip: false });
     // project uvs onto the fuselage island (nose band)
+    // (u follows the profile so the paint and the panel noise don't smear into radial stripes)
     for (let v = st; v < paint.vertexCount; v++) {
-      const x = paint.position[v * 3], y = paint.position[v * 3 + 1] - D.thrustY;
+      const x = paint.position[v * 3], y = paint.position[v * 3 + 1] - D.thrustY, z = paint.position[v * 3 + 2];
       const ang = Math.atan2(x, -y); // 0 at bottom
       const frac = (ang < 0 ? ang + Math.PI * 2 : ang) / (Math.PI * 2);
-      paint.attrs.uv[v * 2] = D.noseZ + 0.01;
+      const along = (z - zc) + (r0 - Math.hypot(x, y)) * 1.5; // ~0 at the lip front .. ~0.2 inside
+      paint.attrs.uv[v * 2] = D.noseZ + 0.006 + Math.min(Math.max(along, 0), 0.2) * 0.5;
       paint.attrs.uv[v * 2 + 1] = frac * P_REF;
-      paint.attrs.uv1[v * 2] = D.noseZ; paint.attrs.uv1[v * 2 + 1] = frac * P_REF;
+      paint.attrs.uv1[v * 2] = D.noseZ + along; paint.attrs.uv1[v * 2 + 1] = frac * P_REF;
     }
   }
 
@@ -569,26 +571,34 @@ function buildDoor(ctx, name, side, z0, z1, y0, y1, island, lod, glassId) {
   seal.push(seal[0].clone());
   tube(hard, densify(seal, 0.06), 0.01, { sides: lod === 0 ? 5 : 3, up: new THREE.Vector3(side, 0, 0) });
   // handle (outside + inside) and hinges
-  const hz = isCargo ? z0 + 0.12 : z1 - 0.12;
-  const hy = isCargo ? 2.35 : 2.32;
+  // the cargo door is top-hinged (it swings up under the wing): handle on the bottom edge
+  const hz = isCargo ? (z0 + z1) / 2 : z1 - 0.12;
+  const hy = isCargo ? y0 + 0.15 : 2.32;
   hard.setColor(0x8c8a84).setMat(0.35, 1, KIND.METAL, 0.3);
   roundedBox(hard, 0.03, 0.03, 0.17, 0.012, mat(side * (hw + 0.035), hy, hz, 0, 0, 0));
   box(hard, 0.02, 0.02, 0.04, mat(side * (hw + 0.016), hy, hz - 0.06));
   box(hard, 0.02, 0.02, 0.04, mat(side * (hw + 0.016), hy, hz + 0.06));
   hard.setColor(0x3a3a36).setMat(0.5, 0.6, KIND.METAL, 0.2);
   roundedBox(hard, 0.025, 0.03, 0.14, 0.01, mat(side * (hw - t - 0.03), hy, hz));
-  const hingeZ = isCargo ? z1 : z0;
+  const hingeZ = z0;
+  const topHinge = isCargo ? topY((z0 + z1) / 2) : 0;
   hard.setColor(0x6f6c64).setMat(0.45, 0.9, KIND.METAL, 0.5);
-  for (const y of [y0 + 0.22, (y0 + topY(hingeZ)) * 0.5 + 0.25]) {
-    lathe(hard, [[0, -0.05], [0.014, -0.05], [0.014, 0.05], [0, 0.05]], 8, mat(side * (hw + 0.01), y, hingeZ, Math.PI / 2, 0, 0));
+  if (isCargo) {
+    for (const z of [z0 + 0.22, z1 - 0.22]) lathe(hard, [[0, -0.06], [0.014, -0.06], [0.014, 0.06], [0, 0.06]], 8, mat(side * (hw + 0.01), topHinge, z));
+  } else {
+    for (const y of [y0 + 0.22, (y0 + topY(hingeZ)) * 0.5 + 0.25]) {
+      lathe(hard, [[0, -0.05], [0.014, -0.05], [0.014, 0.05], [0, 0.05]], 8, mat(side * (hw + 0.01), y, hingeZ, Math.PI / 2, 0, 0));
+    }
   }
   // latch plate / stencil plate (painted in the bake), window stop strap inside
   if (lod === 0 && !isCargo) {
     hard.setColor(0x262019).setMat(0.85, 0, KIND.STRAP, 0.4);
     tube(hard, [new THREE.Vector3(side * (hw - t - 0.005), 2.5, z1 - 0.3), new THREE.Vector3(side * (hw - t - 0.03), 2.38, z1 - 0.22), new THREE.Vector3(side * (hw - t - 0.005), 2.3, z1 - 0.12)], 0.012, { sides: 4, rx: 1, ry: 0.25, up: new THREE.Vector3(side, 0, 0) });
   }
-  const hinge = { origin: new THREE.Vector3(side * hw, 0, hingeZ), axis: new THREE.Vector3(0, 1, 0) };
-  const openAngle = isCargo ? -side * 1.75 : -side * 1.3;
+  const hinge = isCargo
+    ? { origin: new THREE.Vector3(side * hw, topHinge, (z0 + z1) / 2), axis: new THREE.Vector3(0, 0, 1) }
+    : { origin: new THREE.Vector3(side * hw, 0, hingeZ), axis: new THREE.Vector3(0, 1, 0) };
+  const openAngle = isCargo ? side * 1.6 : -side * 1.3;
   return { name, paint, glass, hard, hinge, openAngle, side, isCargo, z0, z1, y0 };
 }
 

@@ -84,7 +84,7 @@ function drawShark(g, x0, y0, w, h, rand) {
       g.lineTo(tip[0], tip[1]);
       g.lineTo(b[0], b[1]);
       g.closePath();
-      g.fillStyle = '#ece6d6';
+      g.fillStyle = '#ddd2b8';
       g.fill();
       g.lineWidth = 7;
       g.strokeStyle = '#151211';
@@ -304,8 +304,8 @@ function rectUV(r) {
 const DECALS = [
   { key: 'shark', c: [0.6, 2.02, -0.97], u: [0, 0, -1], n: [1, 0, 0], size: [1.36, 0.74], depth: 0.7, facing: 0.08 },
   { key: 'shark', c: [-0.6, 2.02, -0.97], u: [0, 0, -1], n: [-1, 0, 0], size: [1.36, 0.74], depth: 0.7, facing: 0.08 },
-  { key: 'emblem', c: [0.69, 2.36, 0.2], u: [0, 0, -1], n: [1, 0, 0], size: [0.64, 0.32], depth: 0.25, facing: 0.3 },
-  { key: 'emblem', c: [-0.69, 2.36, 0.2], u: [0, 0, 1], n: [-1, 0, 0], size: [0.64, 0.32], depth: 0.25, facing: 0.3 },
+  { key: 'emblem', c: [0.69, 2.4, 0.21], u: [0, 0, -1], n: [1, 0, 0], size: [0.8, 0.4], depth: 0.25, facing: 0.3 },
+  { key: 'emblem', c: [-0.69, 2.4, 0.21], u: [0, 0, 1], n: [-1, 0, 0], size: [0.8, 0.4], depth: 0.25, facing: 0.3 },
   { key: 'finart', c: [0, 3.42, 6.27], u: [0, 0, -1], n: [1, 0, 0], size: [0.6, 1.09], depth: 0.3, facing: 0.3 },
   { key: 'finart', c: [0, 3.42, 6.27], u: [0, 0, 1], n: [-1, 0, 0], size: [0.6, 1.09], depth: 0.3, facing: 0.3 },
   { key: 'reg', c: [0.5, 2.62, 4.72], u: [0, 0, -1], n: [1, 0, 0], size: [1.0, 0.23], depth: 0.4, facing: 0.25 },
@@ -412,10 +412,10 @@ void main() {
     ao = 1.0;
   } else {
     // ---------------- layered paint ----------------
-    vec3 YEL = vec3(0.70, 0.395, 0.022);
+    vec3 YEL = vec3(0.64, 0.315, 0.014);
     vec3 OLV = vec3(0.07, 0.081, 0.029);
     vec3 DRK = vec3(0.021, 0.021, 0.019);
-    vec3 WHT = vec3(0.66, 0.62, 0.52);
+    vec3 WHT = vec3(0.5, 0.44, 0.34);
     col = YEL * (0.93 + 0.14 * sp_fbm3(S * 2.3, 3));
     vec3 q = S * vec3(0.43, 0.6, 0.37);
     vec3 warp = vec3(sp_fbm3(q * 1.7 + 3.1, 3), sp_fbm3(q * 1.7 + 7.7, 3), sp_fbm3(q * 1.7 + 1.3, 3));
@@ -456,6 +456,7 @@ void main() {
         metal = max(metal, k < 0.5 ? inside : 0.0);
       }
     }
+    float decalA = 0.0;
     for (int i = 0; i < ${MAX_DECALS}; i++) {
       if (i >= uDecalCount) break;
       vec3 d = P - uDA[i].xyz;
@@ -464,57 +465,90 @@ void main() {
       float w = dot(d, uDC[i].xyz) / uDC[i].w;
       if (u > 0.0 && u < 1.0 && v > 0.0 && v < 1.0 && abs(w) < 1.0 && dot(N, uDC[i].xyz) > uDV[i].w) {
         vec4 dc = texture2D(uDecalTex, uDR[i].xy + vec2(u, v) * uDR[i].zw);
-        col = mix(col, dc.rgb, dc.a * 0.96);
+        col = mix(col, dc.rgb * 0.9, dc.a * 0.96);
+        decalA = max(decalA, dc.a);
       }
     }
     // ---------------- weathering ----------------
     float up = clamp(N.y, 0.0, 1.0);
     float down = clamp(-N.y, 0.0, 1.0);
     float h = P.y;
+    float paintLum = dot(col, vec3(0.3, 0.59, 0.11)); // before weathering: yellow / white vs olive / black
+    float bright = smoothstep(0.035, 0.1, paintLum);
     float macro = sp_fbm3(S * 0.9 + 11.0, 4);
     float region = 0.0;
-    if (part == P_FLOAT) region += step(0.6, N.y) * 0.1 + (1.0 - smoothstep(-2.3, -1.6, P.z)) * 0.3 + (1.0 - smoothstep(0.1, 0.35, h)) * 0.12;
+    if (part == P_FLOAT) region += step(0.6, N.y) * 0.18 + (1.0 - smoothstep(-2.3, -1.6, P.z)) * 0.3 + (1.0 - smoothstep(0.1, 0.35, h)) * 0.12;
     if (part == P_FUSE || part == P_DOOR) {
       float dd = 1e3;
       if (abs(P.x) > 0.5) {
         dd = min(dd, abs(rectDist(P.zy, vec2(0.4, 1.86), vec2(1.3, 3.25))));
         if (P.x > 0.0) dd = min(dd, abs(rectDist(P.zy, vec2(1.42, 1.74), vec2(2.62, 3.14))));
       }
-      region += (1.0 - smoothstep(0.0, 0.07, dd)) * 0.25 + down * 0.12 + (1.0 - smoothstep(-1.62, -1.45, P.z)) * 0.12;
+      region += (1.0 - smoothstep(0.0, 0.07, dd)) * 0.25 + down * 0.12 + (1.0 - smoothstep(-1.62, -1.45, P.z)) * 0.2 + (1.0 - smoothstep(-0.4, 0.3, P.z)) * 0.16;
     }
-    if (part == P_WING || part == P_WINGC) region += step(0.5, N.y) * (1.0 - smoothstep(1.2, 1.9, abs(P.x))) * 0.3;
-    float wornA = smoothstep(0.56, 0.74, macro + edge * 0.18 + region * 0.3 + wearBias * 0.2);
-    col = mix(col, vec3(0.4, 0.385, 0.33) * (0.75 + 0.5 * sp_noise3(S * 24.0)), wornA * (part == P_FLOAT ? 0.55 : 0.3));
-    float lum = dot(col, vec3(0.3, 0.59, 0.11));
-    col = mix(col, mix(vec3(lum), col, 0.7) * 1.1 + 0.008, up * 0.5);
-    col = mix(col, vec3(0.05, 0.042, 0.03), (1.0 - ao) * 0.55);
-    float low = 1.0 - smoothstep(0.3, 2.4, h);
-    float dirtN = sp_fbm3(S * vec3(2.0, 3.5, 2.0) + 2.0, 4);
-    col = mix(col, vec3(0.12, 0.1, 0.075), smoothstep(0.45, 0.8, dirtN) * (0.25 + 0.5 * low));
-    // dark flecks: flaked paint showing primer, dried mud and oil specks (denser in worn areas)
-    float fleckN = sp_noise3(S * 52.0 + 7.0) * 0.7 + sp_noise3(S * 131.0) * 0.3;
-    float fleckK = 0.3 + 0.7 * smoothstep(0.38, 0.72, macro + region * 0.4 + edge * 0.25);
-    float fleck = smoothstep(0.67, 0.73, fleckN) * fleckK;
-    col = mix(col, vec3(0.045, 0.04, 0.03), fleck * (part == P_WSTRUT ? 0.4 : 0.8));
-    // larger flaked / grimy blotches, mostly low on the airframe and in worn regions
-    float blotN = sp_fbm3(S * 13.0 + 31.0, 3);
-    float blot = smoothstep(0.64, 0.7, blotN + low * 0.08 + region * 0.12 + edge * 0.1) * (0.5 + 0.5 * fleckK);
-    col = mix(col, mix(vec3(0.07, 0.06, 0.045), vec3(0.16, 0.14, 0.1), sp_noise3(S * 70.0)), blot * (part == P_WSTRUT ? 0.3 : 0.7));
-    // grime runs down from seams and rivet lines on the vertical sides
-    float runN = sp_noise3(S * vec3(34.0, 1.3, 34.0)) * sp_noise3(S * vec3(7.0, 0.8, 7.0) + 3.0);
-    float runs = smoothstep(0.24, 0.42, runN) * (1.0 - up) * (1.0 - down * 0.5);
-    col = mix(col, col * vec3(0.55, 0.5, 0.42), runs * 0.45);
-    // rust bleeding from rivets and seams, vertical streaks
+    if (part == P_WING || part == P_WINGC) region += step(0.5, N.y) * (1.0 - smoothstep(1.2, 1.9, abs(P.x))) * 0.3 + (1.0 - smoothstep(0.62, 0.8, P.z)) * 0.15;
+    float lowK = 1.0 - smoothstep(0.3, 2.4, h);
+    // panel seams and rivet rows (panel space): grime lines, chip clusters
     float dS, dR, pid;
     sp_panelHeight(vQ, 1.0, dS, dR, pid);
-    float rustRegion = smoothstep(0.45, 0.7, sp_fbm3(S * 0.7 + 21.0, 3)) * 0.8 + low * 0.35;
-    float spot = (1.0 - smoothstep(0.0025, 0.01, dR)) * step(0.5, sp_noise2(vQ * 27.0 + 3.0));
+    float seamZ = 1.0 - smoothstep(0.0, 0.05, dS);
+    float rivZ = 1.0 - smoothstep(0.003, 0.016, dR);
+    float noStrut = part == P_WSTRUT ? 0.0 : 1.0;
+    // sun-bleached tops, cavity darkening
+    float lum = dot(col, vec3(0.3, 0.59, 0.11));
+    col = mix(col, mix(vec3(lum), col, 0.72) * 1.08 + 0.006, up * 0.45);
+    col = mix(col, vec3(0.05, 0.042, 0.03), (1.0 - ao) * 0.55);
+    // big soft grime smudges and general dirt, heavier low on the airframe
+    float smudge = smoothstep(0.52, 0.78, sp_fbm3(S * 1.5 + 41.0, 4) + lowK * 0.12 + region * 0.12);
+    col = mix(col, col * vec3(0.52, 0.45, 0.35), smudge * 0.6);
+    float dirtN = sp_fbm3(S * vec3(2.0, 3.5, 2.0) + 2.0, 4);
+    col = mix(col, vec3(0.1, 0.085, 0.065), smoothstep(0.48, 0.8, dirtN) * (0.2 + 0.45 * lowK));
+    // grime packed along seams (a dark line with a dirty halo)
+    float seamLine = (1.0 - smoothstep(0.0012, 0.0055, dS)) * (0.55 + 0.45 * sp_noise3(S * 3.0 + 9.0));
+    col *= 1.0 - seamLine * 0.55 * noStrut;
+    col = mix(col, col * vec3(0.5, 0.44, 0.36), seamZ * smoothstep(0.35, 0.7, sp_noise3(S * 16.0)) * 0.55 * noStrut);
+    // chipped paint, clustered on seams, rivet rows, edges and worn regions:
+    // dark primer / dirt on the bright paint, bare aluminium on the dark paint
+    float wornA = smoothstep(0.56, 0.74, macro + edge * 0.18 + region * 0.3 + wearBias * 0.2);
+    float chipCov = seamZ * 0.42 + rivZ * 0.25 + edge * 0.5 + region * 0.45 + wornA * 0.35 + (macro - 0.5) * 0.7 + lowK * 0.15 + wearBias * 0.5;
+    if (part == P_FLOAT) chipCov += 0.03 + up * 0.12;
+    chipCov += seamZ * 0.18 * bright;
+    if (part == P_WSTRUT) chipCov = chipCov * 0.5 + edge * 0.2;
+    if (part == P_FUSE && P.z < -1.46) chipCov *= 0.3; // thin cowl-lip island: keep it dark worn metal
+    // chips come in clusters (scuffed zones) and stretch a little along the airflow
+    float cluster = smoothstep(0.32, 0.68, sp_fbm3(S * 2.2 + 77.0, 3) + seamZ * 0.1);
+    chipCov *= 0.45 + 0.85 * cluster;
+    chipCov += decalA * 0.55; // painted-on art flakes first
+    float chipN = sp_fbm3(S * vec3(22.0, 26.0, 15.0) + 5.0, 3) * 0.72 + sp_noise3(S * 70.0) * 0.28;
+    float chipT = 0.8 - clamp(chipCov, 0.0, 1.0) * 0.36;
+    float chipW = max(fwidth(chipN), 0.003);
+    float chip = smoothstep(chipT - chipW, chipT + chipW, chipN);
+    float core = smoothstep(chipT + 0.06 - chipW, chipT + 0.06 + chipW, chipN);
+    vec3 primer = mix(vec3(0.03, 0.026, 0.02), vec3(0.11, 0.06, 0.025), sp_noise3(S * 37.0));
+    vec3 bareAl = vec3(0.36, 0.355, 0.335) * (0.78 + 0.35 * sp_noise3(S * 61.0));
+    float bareMask = chip * mix(0.7, 0.04, bright) + core * mix(0.2, 0.22, bright);
+    bareMask = clamp(bareMask, 0.0, 1.0);
+    col = mix(col, primer, chip);
+    col = mix(col, bareAl, bareMask);
+    metal = max(metal, bareMask * 0.9);
+    // fine dark specks: flaked paint, dried mud and oil (denser in worn areas)
+    float fleckN = sp_noise3(S * 52.0 + 7.0) * 0.7 + sp_noise3(S * 131.0) * 0.3;
+    float fleckK = 0.3 + 0.7 * smoothstep(0.38, 0.72, macro + region * 0.4 + edge * 0.25);
+    float fleck = smoothstep(0.69, 0.74, fleckN) * fleckK;
+    col = mix(col, vec3(0.04, 0.034, 0.026), fleck * (part == P_WSTRUT ? 0.35 : 0.75));
+    // dark drips and rust runs down the sides from seams and rivets
+    float dripN = sp_noise3(S * vec3(38.0, 1.5, 38.0)) * sp_noise3(S * vec3(10.0, 0.75, 10.0) + 7.0);
+    float drips = smoothstep(0.2, 0.38, dripN) * (1.0 - up) * (1.0 - down * 0.7) * (0.55 + 0.45 * seamZ);
+    col = mix(col, col * vec3(0.38, 0.31, 0.23), drips * 0.6 * noStrut);
+    float rustRegion = smoothstep(0.45, 0.7, sp_fbm3(S * 0.7 + 21.0, 3)) * 0.8 + lowK * 0.35 + (part == P_FLOAT ? 0.25 : 0.0);
+    float spot = rivZ * step(0.45, sp_noise2(vQ * 27.0 + 3.0));
     float streakV = sp_noise3(S * vec3(28.0, 1.4, 28.0)) * sp_noise3(S * vec3(9.0, 0.9, 9.0));
     float seamBleed = 1.0 - smoothstep(0.0, 0.05, dS);
-    float rust = clamp(spot * 0.9 * rustRegion + smoothstep(0.3, 0.55, streakV) * (0.4 + seamBleed) * rustRegion * (1.0 - up * 0.7) * 0.8, 0.0, 1.0);
+    float rust = clamp(spot * 0.9 * rustRegion + smoothstep(0.28, 0.5, streakV) * (0.45 + seamBleed) * rustRegion * (1.0 - up * 0.7) * 0.85, 0.0, 1.0);
     if (part == P_WSTRUT) rust *= 0.4;
-    vec3 RUST = mix(vec3(0.16, 0.05, 0.015), vec3(0.36, 0.13, 0.035), sp_noise3(S * 40.0));
+    vec3 RUST = mix(vec3(0.15, 0.05, 0.014), vec3(0.38, 0.14, 0.035), sp_noise3(S * 40.0));
     col = mix(col, RUST, rust * 0.75);
+    metal *= 1.0 - rust * 0.7;
     // exhaust soot along the fuselage sides, oil along the belly
     float soot = 0.0, oil = 0.0;
     if ((part == P_FUSE || part == P_DOOR) && abs(N.x) > 0.1) {
@@ -533,29 +567,35 @@ void main() {
     soot = clamp(soot, 0.0, 1.0); oil = clamp(oil, 0.0, 1.0);
     col = mix(col, vec3(0.012, 0.01, 0.008), soot * 0.85);
     col = mix(col, vec3(0.02, 0.016, 0.01), oil * 0.7);
-    // mud, splash and waterline
+    metal *= 1.0 - max(soot, oil) * 0.8;
+    // mud, splash and waterline; scraped bare metal along the float chines and bottoms
     float mud = 0.0;
     if (part == P_FLOAT) {
-      float mh = h + (sp_fbm3(S * 3.0, 3) - 0.5) * 0.18;
-      mud = 1.0 - smoothstep(0.08, 0.3, mh);
+      float mh = h + (sp_fbm3(S * 3.0, 3) - 0.5) * 0.22;
+      mud = 1.0 - smoothstep(0.12, 0.4, mh);
       float spl = sp_fbm3(S * vec3(11.0, 17.0, 11.0), 3);
-      mud = max(mud, step(0.66 - (1.0 - smoothstep(0.05, 0.75, h)) * 0.22, spl) * (1.0 - smoothstep(0.3, 0.8, h)));
+      mud = max(mud, step(0.62 - (1.0 - smoothstep(0.05, 0.75, h)) * 0.22, spl) * (1.0 - smoothstep(0.3, 0.85, h)));
+      float scrapeN = sp_fbm3(S * vec3(3.0, 9.0, 3.0) + 13.0, 3);
+      float scrape = smoothstep(0.55, 0.66, scrapeN + down * 0.15) * (1.0 - smoothstep(0.3, 0.42, h)) * smoothstep(0.12, 0.2, h);
+      col = mix(col, bareAl * 0.8, scrape * 0.55);
+      metal = max(metal, scrape * 0.55);
       float wl = exp(-pow((h - 0.27) / 0.035, 2.0));
       col = mix(col, vec3(0.06, 0.06, 0.035), wl * 0.55);
       col = mix(col, col * vec3(0.55, 0.65, 0.42), (1.0 - smoothstep(0.22, 0.27, h)) * 0.5);
     } else if (h < 1.9) {
       float spl = sp_fbm3(S * vec3(10.0, 16.0, 10.0), 3);
-      mud = step(0.7, spl) * (1.0 - smoothstep(0.9, 1.9, h)) * 0.8 + (1.0 - smoothstep(1.55, 1.75, h)) * down * 0.3;
+      mud = step(0.68, spl) * (1.0 - smoothstep(0.9, 1.9, h)) * 0.8 + (1.0 - smoothstep(1.55, 1.75, h)) * down * 0.35;
     }
     mud = clamp(mud, 0.0, 1.0);
-    vec3 MUD = mix(vec3(0.24, 0.2, 0.15), vec3(0.09, 0.075, 0.055), sp_noise3(S * 9.0));
+    vec3 MUD = mix(vec3(0.2, 0.165, 0.12), vec3(0.07, 0.058, 0.042), sp_noise3(S * 9.0));
     col = mix(col, MUD, mud * 0.85);
-    float ws = smoothstep(0.62, 0.8, sp_noise3(S * vec3(22.0, 1.1, 22.0))) * (1.0 - up) * 0.25;
-    col = mix(col, col * 1.35 + 0.02, ws);
+    metal *= 1.0 - mud * 0.9;
+    float ws = smoothstep(0.62, 0.8, sp_noise3(S * vec3(22.0, 1.1, 22.0))) * (1.0 - up) * 0.2;
+    col = mix(col, col * 1.3 + 0.015, ws);
     wear = 0.14 + wearBias + edge * 0.45 + region + (macro - 0.47) * 0.7 + (1.0 - ao) * 0.12;
     wear = clamp(wear * (1.0 - mud * 0.6), 0.0, 1.0);
-    rough = 0.6 + up * 0.12 - soot * 0.18 - oil * 0.3 + mud * 0.32 + rust * 0.22 + wornA * 0.06 + (dirtN - 0.5) * 0.12;
-    rough = clamp(mix(rough, 0.32, metal), 0.18, 1.0);
+    rough = 0.6 + up * 0.12 - soot * 0.18 - oil * 0.3 + mud * 0.32 + rust * 0.22 + chip * 0.12 + smudge * 0.08 + (dirtN - 0.5) * 0.12;
+    rough = clamp(mix(rough, 0.38 + 0.2 * sp_noise3(S * 50.0), metal), 0.18, 1.0);
     if (part == P_WSTRUT) detail = 0.0;
   }
   ao = mix(0.25, 1.0, ao);

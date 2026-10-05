@@ -18,7 +18,7 @@ float sk_fbm(vec2 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 5; i++) { s +
 vec3 skyColor(vec3 d, bool withSun) {
   float h = d.y;
   vec3 c = mix(uHorizon, uZenith, pow(clamp(h, 0.0, 1.0), 0.42));
-  c = mix(c, uGroundColor, smoothstep(0.0, -0.12, h));
+  c = mix(c, uGroundColor, 1.0 - smoothstep(-0.12, 0.0, h));
   float sd = max(dot(d, uSunDir), 0.0);
   c += uSunColor * (pow(sd, 5.0) * 0.12 + pow(sd, 48.0) * 0.35) * (1.0 - uNight * 0.8);
   if (withSun) c += uSunColor * smoothstep(0.9993, 0.9997, sd) * 40.0 * (1.0 - uNight);
@@ -127,15 +127,15 @@ export class Sky {
     zen.lerp(grey, rainK * 0.75); hor.lerp(grey, rainK * 0.7);
     this.uniforms.uZenith.value.copy(zen);
     this.uniforms.uHorizon.value.copy(hor);
-    const sunCol = lerpC(new THREE.Color(1.0, 0.5, 0.22), new THREE.Color(1.0, 0.95, 0.88), THREE.MathUtils.smoothstep(elev, 0.02, 0.4));
+    const sunCol = lerpC(new THREE.Color(1.0, 0.5, 0.22), new THREE.Color(1.0, 0.9, 0.76), THREE.MathUtils.smoothstep(elev, 0.02, 0.4));
     this.uniforms.uSunColor.value.copy(sunCol).multiplyScalar(1 - night);
     this.uniforms.uGroundColor.value.copy(hor).multiplyScalar(0.35);
     // lights
     this.sun.color.copy(night > 0.6 ? new THREE.Color(0.55, 0.65, 0.9) : sunCol);
-    this.sun.intensity = night > 0.6 ? 0.12 : (2.7 * day + 0.6 * sunset) * (1 - rainK * 0.75);
+    this.sun.intensity = night > 0.6 ? 0.12 : (3.6 * day + 0.6 * sunset) * (1 - rainK * 0.75);
     this.hemi.color.copy(zen).lerp(new THREE.Color(1, 1, 1), 0.35);
     this.hemi.groundColor.set(0x5c4c38).multiplyScalar(0.35 + 0.65 * day);
-    this.hemi.intensity = 0.2 + 0.55 * day;
+    this.hemi.intensity = (0.15 + 0.3 * day) * (1 + rainK * 0.8);
     const f = this.scene.fog;
     f.color.copy(hor).lerp(zen, 0.15);
     f.near = 120 - rainK * 90;
@@ -151,7 +151,7 @@ export class Sky {
       if (this.envRT) this.envRT.dispose();
       this.envRT = this.pmrem.fromScene(this.envScene, 0.0, 0.1, 100);
       this.scene.environment = this.envRT.texture;
-      this.scene.environmentIntensity = 0.35 + 0.65 * day;
+      this.scene.environmentIntensity = (0.3 + 0.42 * day) * (1 + rainK * 0.5);
     }
   }
 }
