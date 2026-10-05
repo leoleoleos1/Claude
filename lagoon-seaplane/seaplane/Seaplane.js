@@ -954,6 +954,9 @@ export function createSeaplane(options = {}) {
     st.burn = damp(st.burn, physics.wreck ? 1 : engine.fire ? 0.45 : 0, 4, dt);
     U.uSpBurn.value = st.burn;
     U.uSpShatter.value = clamp(1 - physics.damage.windscreen, 0, 1);
+    const dm = physics.damage;
+    U.uSpDmg.value.set(1 - dm.wingL, 1 - dm.wingR, 1 - dm.floatL, 1 - dm.floatR);
+    U.uSpDmg2.value.set(1 - dm.tail, 1 - dm.hull, 0, 0);
     // ropes
     let tension = 0;
     for (let i = 0; i < ropeMeshes.length; i++) {

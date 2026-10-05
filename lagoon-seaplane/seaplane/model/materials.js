@@ -29,6 +29,9 @@ export function createSharedUniforms() {
     uSpShatter: { value: 0 },
     uSpDetail: { value: 1 },
     uSpBurn: { value: 0 },
+    // structural damage severity (0 intact .. 1 wrecked): wingL, wingR, floatL, floatR / tail, hull
+    uSpDmg: { value: new THREE.Vector4() },
+    uSpDmg2: { value: new THREE.Vector4() },
     uSpRig: { value: null },
   };
 }
@@ -89,10 +92,12 @@ export function createPaintMaterial(U, maps, { detail = true } = {}) {
     shader.uniforms.uSpWet = U.uSpWet;
     shader.uniforms.uSpDetail = U.uSpDetail;
     shader.uniforms.uSpBurn = U.uSpBurn;
+    shader.uniforms.uSpDmg = U.uSpDmg;
+    shader.uniforms.uSpDmg2 = U.uSpDmg2;
     let vs = shader.vertexShader, fs = shader.fragmentShader;
     vs = inject(vs, '#include <common>', 'attribute vec2 aPanel;\nvarying vec2 vSpPanel;\nvarying vec3 vSpObj;');
     vs = inject(vs, '#include <begin_vertex>', 'vSpPanel = aPanel;\nvSpObj = position;');
-    fs = inject(fs, '#include <common>', `varying vec2 vSpPanel;\nvarying vec3 vSpObj;\nuniform float uSpWet;\nuniform float uSpDetail;\nuniform float uSpBurn;\n${GLSL_NOISE}\n${GLSL_PANEL}\n${PERTURB}`);
+    fs = inject(fs, '#include <common>', `varying vec2 vSpPanel;\nvarying vec3 vSpObj;\nuniform float uSpWet;\nuniform float uSpDetail;\nuniform float uSpBurn;\nuniform vec4 uSpDmg;\nuniform vec4 uSpDmg2;\n${GLSL_NOISE}\n${GLSL_PANEL}\n${PERTURB}`);
     if (detail) {
       fs = inject(fs, '#include <metalnessmap_fragment>', /* glsl */ `
   vec4 spData = texture2D(roughnessMap, vRoughnessMapUv);
@@ -134,6 +139,40 @@ export function createPaintMaterial(U, maps, { detail = true } = {}) {
   diffuseColor.rgb *= 1.0 - (1.0 - smoothstep(0.0, 0.0022, dS0)) * 0.5 * spMid * spDetailMask;
   diffuseColor.rgb *= 1.0 - (1.0 - smoothstep(0.0028, 0.0045, dR0)) * smoothstep(0.002, 0.0028, dR0) * 0.35 * spMid * spDetailMask;
   float spChipH = -0.0004 * spChip * (1.0 - spFar);
+  // structural damage in the damaged part's region (plane-local position): shallow
+  // dents, and punctures with a dark core, a torn bare-metal rim and a scorched halo
+  vec3 spP = vSpObj;
+  float spDmgK = spP.y > 0.8 && abs(spP.x) > 0.75 ? (spP.x < 0.0 ? uSpDmg.x : uSpDmg.y)
+    : spP.y < -1.25 && abs(spP.x) > 0.85 ? (spP.x < 0.0 ? uSpDmg.z : uSpDmg.w)
+    : spP.z > 4.4 && spP.y > 0.3 ? uSpDmg2.x : uSpDmg2.y;
+  float spDentH = 0.0;
+  if (spDmgK > 0.01) {
+    spDentH = -spDmgK * 0.01 * smoothstep(0.42, 0.75, sp_fbm3(spP * 2.3 + 17.0, 3));
+    vec2 hq = spQ * 2.4; // ~0.42 m cells in panel space
+    vec2 hc = floor(hq);
+    float hd = 9.0;
+    for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) {
+      vec2 c = hc + vec2(float(i), float(j));
+      float hh = sp_h21(c * 1.37 + 5.1);
+      if (hh < spDmgK * spDmgK * 0.5) {
+        vec2 o = sp_h22(c + 3.7);
+        float r = (0.03 + 0.05 * fract(hh * 13.7)) * 2.4;
+        float rag = 0.7 + 0.6 * sp_noise2((hq - c) * 9.0 + c * 3.1);
+        hd = min(hd, length(hq - c - o) / (r * rag));
+      }
+    }
+    float core = 1.0 - smoothstep(0.85, 1.0, hd);
+    float rim = (1.0 - smoothstep(1.0, 1.6, hd)) * (1.0 - core);
+    float halo = (1.0 - smoothstep(1.4, 3.4, hd)) * (1.0 - core - rim);
+    diffuseColor.rgb *= 1.0 - halo * 0.6;
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.3, 0.29, 0.27) * (0.7 + 0.5 * sp_noise2(hq * 23.0)), rim);
+    metalnessFactor = mix(metalnessFactor, 0.8, rim);
+    roughnessFactor = mix(roughnessFactor, 0.55, rim);
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.004), core);
+    roughnessFactor = mix(roughnessFactor, 1.0, core);
+    metalnessFactor = mix(metalnessFactor, 0.0, core);
+    spDentH += rim * 0.0015 - core * 0.003;
+  }
   // scorch / soot from fire damage
   diffuseColor.rgb *= 1.0 - uSpBurn * smoothstep(0.3, 0.8, sp_noise3(vSpObj * 1.7)) * 0.85;
   // wet surfaces: darker and glossier
@@ -142,7 +181,7 @@ export function createPaintMaterial(U, maps, { detail = true } = {}) {
   roughnessFactor = mix(roughnessFactor, 0.14, spWet * 0.85);
 `);
       fs = inject(fs, '#include <normal_fragment_maps>', /* glsl */ `
-  vec2 spdH = vec2(spH1 - spH0, spH2 - spH0) + vec2(dFdx(spChipH), dFdy(spChipH));
+  vec2 spdH = vec2(spH1 - spH0, spH2 - spH0) + vec2(dFdx(spChipH), dFdy(spChipH)) + vec2(dFdx(spDentH), dFdy(spDentH));
   normal = sp_perturb(-vViewPosition, normal, spdH, faceDirection);
 `);
     } else {
@@ -160,7 +199,7 @@ export function createPaintMaterial(U, maps, { detail = true } = {}) {
     shader.vertexShader = vs;
     shader.fragmentShader = fs;
   };
-  m.customProgramCacheKey = () => (detail ? 'seaplane-paint-v1' : 'seaplane-paintlod-v1');
+  m.customProgramCacheKey = () => (detail ? 'seaplane-paint-v2' : 'seaplane-paintlod-v2');
   return m;
 }
 

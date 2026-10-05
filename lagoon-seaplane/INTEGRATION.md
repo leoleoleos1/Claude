@@ -354,8 +354,10 @@ water rudders, flooding of holed floats, beaching on keels and chocks, ropes.
 ## 11. Known limitations
 
 - Damage is functional (lift loss, flooding, misfires, fire, wreck) and visible as
-  burn/soot, shattered windscreen cracks and a bent blade. Dents and holes are not
-  modelled per panel.
+  dents and punctures on the damaged wing / float / tail / fuselage (paint shader,
+  driven by `state.damage` through shared uniforms - more holes as health drops),
+  burn/soot, shattered windscreen cracks and a bent blade. Punctures are shading
+  (dark core, torn rim), not cut through the mesh, and the distant LODs don't show them.
 - Wreck debris: the outer wing panel (with its aileron), the float (with its water
   rudder) on the side that hit, and the propeller break off as pre-split pieces. Every
   LOD hides them by trimming its index range (no extra draw calls while intact) and
