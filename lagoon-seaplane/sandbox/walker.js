@@ -186,10 +186,11 @@ export class Walker {
       if (d > it.radius) continue;
       const cos = (dx * dir.x + dy * dir.y + dz * dir.z) / Math.max(d, 1e-4);
       if (cos < it.viewCone) continue;
-      const score = cos - d * 0.12;
+      const score = cos - d * 0.12 + (it.priority || 0) * 0.4;
       if (score > bestScore) { bestScore = score; best = it; }
     }
-    if (best !== this.focus) { this.focus = best; this.holdT = 0; this.eUsed = false; }
+    // a new target needs a fresh press of E (eUsed is cleared when E is released)
+    if (best !== this.focus) { this.focus = best; this.holdT = 0; }
   }
 
   _interact(dt, input) {

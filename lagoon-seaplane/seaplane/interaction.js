@@ -76,18 +76,20 @@ export class Interaction {
         id: 'door.' + name, local: pos, radius: 1.9, viewCone: 0.55, hold: false,
         get labelKey() { return P.doorOpen(name) ? 'seaplane.door.close' : 'seaplane.door.open'; },
         get label() { return (P.doorOpen(name) ? 'Close ' : 'Open ') + txt; },
+        // once open, boarding takes precedence over closing the door again
+        get priority() { return P.doorOpen(name) ? -1 : 0; },
         enabled: () => !this.seated && !this.transition,
         use: () => P.toggleDoor(name),
       });
     }
     add({
-      id: 'seat.pilot', local: L(-0.33, 2.5, 1.15), radius: 2.3, viewCone: 0.5, hold: false,
+      id: 'seat.pilot', local: L(-1.05, 2.45, 1.0), radius: 2.0, viewCone: 0.45, hold: false, priority: 1,
       labelKey: 'seaplane.seat.pilot', label: 'Get in (pilot)',
       enabled: () => !this.seated && !this.transition && P.doorOpen('doorL') && !P.physics.wreck,
       use: (from) => P.api.seat('pilot', from && from.position, from && from.quaternion),
     });
     add({
-      id: 'seat.copilot', local: L(0.33, 2.5, 1.15), radius: 2.3, viewCone: 0.5, hold: false,
+      id: 'seat.copilot', local: L(1.05, 2.45, 1.3), radius: 2.0, viewCone: 0.45, hold: false, priority: 1,
       labelKey: 'seaplane.seat.copilot', label: 'Get in (co-pilot)',
       enabled: () => !this.seated && !this.transition && (P.doorOpen('doorR') || P.doorOpen('cargo')) && !P.physics.wreck,
       use: (from) => P.api.seat('copilot', from && from.position, from && from.quaternion),
@@ -159,7 +161,7 @@ export class Interaction {
       if (d > o.radius) continue;
       const cos = this._w.dot(lookDir) / Math.max(d, 1e-4);
       if (cos < o.viewCone) continue;
-      const score = cos - d * 0.15;
+      const score = cos - d * 0.15 + (o.priority || 0) * 0.4;
       if (score > bestScore) { bestScore = score; best = o; }
     }
     return best;

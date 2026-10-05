@@ -491,6 +491,19 @@ void main() {
     float low = 1.0 - smoothstep(0.3, 2.4, h);
     float dirtN = sp_fbm3(S * vec3(2.0, 3.5, 2.0) + 2.0, 4);
     col = mix(col, vec3(0.12, 0.1, 0.075), smoothstep(0.45, 0.8, dirtN) * (0.25 + 0.5 * low));
+    // dark flecks: flaked paint showing primer, dried mud and oil specks (denser in worn areas)
+    float fleckN = sp_noise3(S * 52.0 + 7.0) * 0.7 + sp_noise3(S * 131.0) * 0.3;
+    float fleckK = 0.3 + 0.7 * smoothstep(0.38, 0.72, macro + region * 0.4 + edge * 0.25);
+    float fleck = smoothstep(0.67, 0.73, fleckN) * fleckK;
+    col = mix(col, vec3(0.045, 0.04, 0.03), fleck * (part == P_WSTRUT ? 0.4 : 0.8));
+    // larger flaked / grimy blotches, mostly low on the airframe and in worn regions
+    float blotN = sp_fbm3(S * 13.0 + 31.0, 3);
+    float blot = smoothstep(0.64, 0.7, blotN + low * 0.08 + region * 0.12 + edge * 0.1) * (0.5 + 0.5 * fleckK);
+    col = mix(col, mix(vec3(0.07, 0.06, 0.045), vec3(0.16, 0.14, 0.1), sp_noise3(S * 70.0)), blot * (part == P_WSTRUT ? 0.3 : 0.7));
+    // grime runs down from seams and rivet lines on the vertical sides
+    float runN = sp_noise3(S * vec3(34.0, 1.3, 34.0)) * sp_noise3(S * vec3(7.0, 0.8, 7.0) + 3.0);
+    float runs = smoothstep(0.24, 0.42, runN) * (1.0 - up) * (1.0 - down * 0.5);
+    col = mix(col, col * vec3(0.55, 0.5, 0.42), runs * 0.45);
     // rust bleeding from rivets and seams, vertical streaks
     float dS, dR, pid;
     sp_panelHeight(vQ, 1.0, dS, dR, pid);

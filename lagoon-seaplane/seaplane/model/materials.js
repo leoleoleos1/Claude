@@ -343,7 +343,7 @@ export function createGlassMaterial(U, { detail = true } = {}) {
     spCrack = max(spCrack, uSpShatter * smoothstep(0.5, 0.75, sp_fbm2(spUv * 9.0, 3)) * 0.6);
   }` : ''}
   // rain: droplets drift with the airflow, streak at speed
-  float spDropH = 0.0;
+  float spDropH = 0.0, spRim = 0.0, spLens = 0.0;
   if (uSpRain > 0.01 && vSpGlass.w > 0.5) {
     for (int L = 0; L < 2; L++) {
       float sc = L == 0 ? 11.0 : 19.0;
@@ -359,10 +359,17 @@ export function createGlassMaterial(U, { detail = true } = {}) {
       float dr = length(dd);
       float drop = 1.0 - smoothstep(rad * 0.7, rad, dr);
       spDropH += drop * (1.0 - dr / max(rad, 1e-3)) * 0.0012;
+      // bright rim + darker lens so droplets read against sky and cockpit alike
+      float rr = dr / max(rad, 1e-3);
+      spRim = max(spRim, drop * smoothstep(0.45, 0.95, rr));
+      spLens = max(spLens, drop * (1.0 - smoothstep(0.2, 0.8, rr)));
     }
   }
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.36, 0.34, 0.3), clamp(spDust * 0.5 + spCrack * 0.8, 0.0, 1.0));
-  diffuseColor.a = clamp(opacity + spDust * 0.14 + spCrack * 0.55 + spScr * 0.04, 0.0, 1.0);
+  // droplets: dark refracting lens with a bright rim (reads against sky and cabin alike)
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.05, 0.06, 0.07), spLens * 0.6);
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.8, 0.83, 0.86), spRim * 0.6);
+  diffuseColor.a = clamp(opacity + spDust * 0.14 + spCrack * 0.55 + spScr * 0.04 + spLens * 0.22 + spRim * 0.3, 0.0, 1.0);
   roughnessFactor = clamp(roughnessFactor + spDust * 0.3 + spScr * 0.25, 0.0, 1.0);
 `);
     fs = inject(fs, '#include <normal_fragment_maps>', /* glsl */ `

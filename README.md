@@ -144,3 +144,12 @@ tests/              Node tests for the simulation, day cycle and state machine
 - **Reduced motion.** With `prefers-reduced-motion`, screen shake, particles,
   title bobbing, score pop and panel slide-in are disabled and the collision
   flash is softened.
+
+## Lagoon seaplane (separate project in `lagoon-seaplane/`)
+
+A procedural, flyable and enterable bush seaplane module for a Three.js r169
+first-person game, plus a sandbox island to test it. Serve the repository
+over http (for example `python3 -m http.server 8000`) and open
+<http://localhost:8000/lagoon-seaplane/>. The public API, coordinate frame, env
+callbacks, keymap and measured budgets are documented in
+[`lagoon-seaplane/INTEGRATION.md`](lagoon-seaplane/INTEGRATION.md).

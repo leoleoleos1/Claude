@@ -845,7 +845,7 @@ export class Effects {
           this.acc.fire -= 1;
           Q.copy(this.pts.engine); Q.x += (R() - 0.5) * 0.7; Q.y += R() * 0.4; Q.z += (R() - 0.5) * 0.9;
           this._local(Q, M, P);
-          this._fire(P.x, P.y, P.z, vel.x * 0.6 + (R() - 0.5), 1.2 + R() * 1.5, vel.z * 0.6 + (R() - 0.5), 0.35 + R() * 0.35, 0.45 + R() * 0.4, 1.2);
+          this._fire(P.x, P.y, P.z, vel.x * 0.6 + (R() - 0.5), 1.2 + R() * 1.5, vel.z * 0.6 + (R() - 0.5), 0.5 + R() * 0.5, 0.45 + R() * 0.45, 2.4);
         }
         this.acc.emitFire -= dt;
         if (this.acc.emitFire <= 0) {
@@ -911,7 +911,8 @@ export class Effects {
     const strobe = s.lights.nav && (this.strobeT < 0.06 || (this.strobeT > 0.16 && this.strobeT < 0.2)) ? 0.55 + 0.45 * night : 0;
     const land = s.lights.landing ? 0.25 + 0.75 * night : 0;
     for (let side = 0; side < 2; side++) this.flashes[side] = Math.max(0, this.flashes[side] - dt * 12);
-    const exh = s.running ? (0.02 + 0.15 * s.power) * (0.25 + 0.75 * night) : 0;
+    const exh = (s.running ? (0.02 + 0.15 * s.power) * (0.25 + 0.75 * night) : 0)
+      + (s.fire ? 1.2 + 0.6 * Math.sin(this.time * 23) * Math.sin(this.time * 7.1) : 0);
     const lv = this.glowLevel;
     lv[GLOW.NAV_L] = navK * 1.6; lv[GLOW.NAV_R] = navK * 1.6; lv[GLOW.TAIL] = navK * 1.2;
     lv[GLOW.STROBE] = strobe * 3;
