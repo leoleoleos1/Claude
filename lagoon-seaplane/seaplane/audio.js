@@ -473,7 +473,7 @@ export function createSeaplaneAudio(audioCtx, outputNode, options = {}) {
   // ---------------- master: compressor -> soft clip -> -6 dBFS ceiling ----------------
   const mix = gain(1);
   const comp = keep(ctx.createDynamicsCompressor());
-  comp.threshold.value = -14; comp.knee.value = 8; comp.ratio.value = 10; comp.attack.value = 0.003; comp.release.value = 0.25;
+  comp.threshold.value = -10; comp.knee.value = 6; comp.ratio.value = 6; comp.attack.value = 0.003; comp.release.value = 0.25;
   const clip = keep(ctx.createWaveShaper());
   clip.curve = tanhCurve();
   clip.oversample = '2x';
@@ -507,8 +507,10 @@ export function createSeaplaneAudio(audioCtx, outputNode, options = {}) {
 
   // ---------------- synth stems ----------------
   const split = keep(ctx.createChannelSplitter(6));
-  const EXT = [1.0, 0.85, 0.2, 0.9, 0.9];
-  const INT = [0.95, 0.6, 0.85, 0.65, 0.75];
+  // stem levels (exhaust, prop, mechanical, water, structure); the master compressor only
+  // catches peaks, so idle vs. full power keeps its dynamics
+  const EXT = [0.62, 0.52, 0.12, 0.55, 0.55];
+  const INT = [0.36, 0.22, 0.34, 0.26, 0.3];
   const stemExt = [], stemInt = [];
   for (let i = 0; i < 5; i++) {
     const ge = gain(EXT[i]); split.connect(ge, i); ge.connect(extIn); stemExt.push(ge);

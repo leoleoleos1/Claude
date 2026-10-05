@@ -52,12 +52,13 @@ export function buildPowerplant(ctx) {
   // cylinders
   const n = 9;
   const finsB = lod === 0 ? 10 : 4, finsH = lod === 0 ? 7 : 3;
-  const headProfile = (() => {
+  // LOD1: plain tapered cylinders (fins are invisible beyond 30 m)
+  const headProfile = lod === 0 ? (() => {
     const p = finProfile(0.4, 0.53, 0.062, 0.088, finsH, false);
     p.push([0.055, 0.545], [0.035, 0.556], [0.001, 0.56]);
     return p;
-  })();
-  const barrelProfile = finProfile(0.21, 0.4, 0.056, 0.073, finsB, false);
+  })() : [[0.085, 0.4], [0.085, 0.53], [0.04, 0.556], [0.001, 0.56]];
+  const barrelProfile = lod === 0 ? finProfile(0.21, 0.4, 0.056, 0.073, finsB, false) : [[0.072, 0.21], [0.072, 0.4]];
   for (let k = 0; k < n; k++) {
     const th = (k / n) * Math.PI * 2;
     const dir = v3(Math.sin(th), Math.cos(th), 0);
@@ -71,7 +72,7 @@ export function buildPowerplant(ctx) {
     const side = v3(Math.cos(th), -Math.sin(th), 0); // tangent
     void side;
     hard.setColor(0x4d4f50).setMat(0.45, 0.7, KIND.METAL, 0.6);
-    for (const dz of [-0.06, 0.06]) {
+    if (lod === 0) for (const dz of [-0.06, 0.06]) {
       const c = E(dir.x * 0.5, dir.y * 0.5, dz);
       roundedBox(hard, 0.07, 0.07, 0.05, 0.015, new THREE.Matrix4().compose(c, new THREE.Quaternion().setFromAxisAngle(v3(0, 0, 1), -th), v3(1, 1, 1)));
     }

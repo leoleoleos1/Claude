@@ -48,6 +48,9 @@ export class GeoBuilder {
     this.curOccluder = true;
     this.noAO = []; // per-vertex: skip AO (constant 1)
     this.curNoAO = false;
+    // distant LODs: helpers use fewer segments and plain boxes (set by createContext)
+    this.lodLevel = 0;
+    this.segScale = 1;
   }
 
   get vertexCount() { return this.position.length / 3; }
@@ -286,7 +289,7 @@ function gridNormals(P, N, cols, rows, opts) {
 // radius: number | fn(f, i) with f = 0..1 along the path.
 // opts: { sides, caps, up (profile orientation hint), rx, ry (profile scale), phase }
 export function tube(b, pts, radius, opts = {}) {
-  const sides = opts.sides || 8;
+  const sides = Math.max(3, Math.round((opts.sides || 8) * (b.segScale || 1)));
   const n = pts.length;
   const T = [];
   for (let i = 0; i < n; i++) {
@@ -358,6 +361,7 @@ export function tube(b, pts, radius, opts = {}) {
 // Lathe around local +Z (profile: [[r, z], ...]) then transformed by matrix.
 // Normals point away from the axis for profiles going +z with r >= 0.
 export function lathe(b, profile, segments, matrix, opts = {}) {
+  segments = Math.max(3, Math.round(segments * (b.segScale || 1)));
   const start = b.vertexCount;
   const n = profile.length;
   const a0 = opts.a0 || 0, a1 = opts.a1 !== undefined ? opts.a1 : Math.PI * 2;
@@ -421,6 +425,7 @@ export function box(b, sx, sy, sz, matrix, skip = 0) {
 }
 
 export function roundedBox(b, sx, sy, sz, r, matrix, seg = 2) {
+  if (b.lodLevel >= 1) return box(b, sx, sy, sz, matrix);
   const g = new RoundedBoxGeometry(sx, sy, sz, seg, Math.min(r, sx / 2 - 1e-4, sy / 2 - 1e-4, sz / 2 - 1e-4));
   return b.append(g, matrix, [Math.max(sx, sz), sy]);
 }

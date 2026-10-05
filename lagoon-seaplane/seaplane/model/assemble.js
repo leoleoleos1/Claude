@@ -123,8 +123,17 @@ export function assembleLodN(model, mats, lod) {
     if (p.paint) mergeInto(ctx.paint, p.paint);
     if (p.hard) mergeInto(ctx.hard, p.hard);
   }
+  // doors are merged in their default pose (cargo door open, pilot doors shut)
+  const _rot = new THREE.Matrix4(), _t1 = new THREE.Matrix4(), _t2 = new THREE.Matrix4();
   for (const key in model.doors || {}) {
     const d = model.doors[key];
+    const angle = d.isCargo ? d.openAngle : 0;
+    if (angle) {
+      const o = d.hinge.origin;
+      _rot.makeRotationAxis(d.hinge.axis, angle);
+      _t1.makeTranslation(o.x, o.y, o.z).multiply(_rot).multiply(_t2.makeTranslation(-o.x, -o.y, -o.z));
+      for (const b of [d.paint, d.glass, d.hard]) if (b && b.vertexCount) b.transform(0, _t1);
+    }
     mergeInto(ctx.paint, d.paint); mergeInto(ctx.glass, d.glass); mergeInto(ctx.hard, d.hard);
   }
   // LOD2: the spinner joins the static mesh (its spin is invisible from > 150 m)

@@ -37,8 +37,10 @@ export function createContext(lod, seed) {
       return id;
     },
     genericIsland(name) { const s = GENERIC[name]; return this.island('g_' + name, 0, 0, s[0], s[1], 0.6, true); },
-    newBuilder(layout) { const b = new GeoBuilder(layout); this.extra.push(b); return b; },
+    newBuilder(layout) { const b = new GeoBuilder(layout); setLod(b); this.extra.push(b); return b; },
   };
+  const setLod = (b) => { b.lodLevel = lod; b.segScale = lod === 0 ? 1 : lod === 1 ? 0.6 : 0.45; };
+  for (const b of [ctx.paint, ctx.hard, ctx.glass, ctx.bakeOnly]) setLod(b);
   for (const g in GENERIC) ctx.genericIsland(g);
   return ctx;
 }

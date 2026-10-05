@@ -65,18 +65,18 @@ export function buildStruts(ctx) {
   paintTube('spreadF', v3(-F.x + 0.06, deckY(FS.frontZ) + 0.05, FS.frontZ + 0.08), v3(F.x - 0.06, deckY(FS.frontZ) + 0.05, FS.frontZ + 0.08), 0.032, round, 1);
   paintTube('spreadR', v3(-F.x + 0.06, deckY(FS.rearZ) + 0.05, FS.rearZ - 0.08), v3(F.x - 0.06, deckY(FS.rearZ) + 0.05, FS.rearZ - 0.08), 0.032, round, 1);
 
-  // ---- fittings, wires, step ----
+  // ---- fittings, wires, step (not on the distant LOD) ----
   const h0 = hard.vertexCount;
   hard.setColor(0x4a4842).setMat(0.45, 0.85, KIND.METAL, 0.6);
   // deck fittings (both struts)
-  for (const p of [fFront, fRear]) {
+  if (lod < 2) for (const p of [fFront, fRear]) {
     roundedBox(hard, 0.09, 0.05, 0.16, 0.012, mat(p.x, p.y + 0.012, p.z));
   }
   // fuselage strut fittings
-  for (const p of [uFront, uRear]) box(hard, 0.08, 0.06, 0.1, mat(p.x, p.y + 0.02, p.z));
+  if (lod < 2) for (const p of [uFront, uRear]) box(hard, 0.08, 0.06, 0.1, mat(p.x, p.y + 0.02, p.z));
   // wing strut root fork
-  box(hard, 0.08, 0.1, 0.18, mat(root.x - 0.02, root.y + 0.02, root.z));
-  for (const p of [wf, wr]) {
+  if (lod < 2) box(hard, 0.08, 0.1, 0.18, mat(root.x - 0.02, root.y + 0.02, root.z));
+  if (lod < 2) for (const p of [wf, wr]) {
     const m = matAlong(root, p);
     lathe(hard, [[0.032, 0], [0.036, 0.04], [0.02, 0.1]], 8, m.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0, m.len - 0.1)));
   }
@@ -105,7 +105,7 @@ export function buildStruts(ctx) {
     const wire = (a, b) => {
       tube(hard, [a, b], 0.0045, { sides: lod === 0 ? 4 : 3 });
       const m = matAlong(a, b);
-      lathe(hard, [[0.006, 0], [0.01, 0.02], [0.01, 0.07], [0.006, 0.09]], 6, m.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0, m.len * 0.2)));
+      if (lod === 0) lathe(hard, [[0.006, 0], [0.01, 0.02], [0.01, 0.07], [0.006, 0.09]], 6, m.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0, m.len * 0.2)));
     };
     for (const z of [FS.frontZ, FS.rearZ]) {
       const dy = deckY(z) + 0.02;
