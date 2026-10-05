@@ -12,6 +12,7 @@ import { buildStruts } from './struts.js';
 import { buildPowerplant } from './powerplant.js';
 import { buildProp } from './prop.js';
 import { buildCargo } from './cargo.js';
+import { buildCockpit } from './cockpit.js';
 
 // Generic islands: atlas regions painted with a uniform material (no 3D paint).
 export const GENERIC = { dark: [1.7, 3.2], interior: [1.6, 1.6], fitting: [0.5, 0.5], black: [0.5, 0.5] };
@@ -63,6 +64,7 @@ export function buildAirframe(lod, seed) {
   out.prop = buildProp(ctx);
   const cargo = buildCargo(ctx);
   Object.assign(out.anchors, cargo.anchors);
+  if (lod === 0) out.interior = buildCockpit(ctx);
   return out;
 }
 
@@ -112,6 +114,16 @@ export function toLocalFrame(model) {
     else if (a && typeof a === 'object') for (const kk in a) if (a[kk] && a[kk].isVector3 && !kk.toLowerCase().includes('dir') && !kk.includes('axis')) shift(a[kk]);
   }
   if (model.prop) shift(model.prop.hub);
+  const it = model.interior;
+  if (it) {
+    for (const b of [it.st, it.dyn, it.gauge, it.gglass, it.horizon]) b.translateAll(-CG_MODEL.x, -CG_MODEL.y, -CG_MODEL.z);
+    for (const p of it.parts) shift(p.pivot);
+    for (const k in it.anchors) {
+      const a = it.anchors[k];
+      if (a && a.isVector3) shift(a);
+      else if (Array.isArray(a)) a.forEach((v) => v && v.isVector3 && shift(v));
+    }
+  }
 }
 
 export function bakeAO(model) {
@@ -132,4 +144,13 @@ export function bakeAO(model) {
     else if (b.layoutName === 'hard') entries.push({ b, occlude: true, receive: true, apply: hardApply });
   }
   computeVoxelAO(entries, { cell: ctx.lod === 0 ? 0.075 : 0.15, dirs: ctx.lod === 0 ? 14 : 8, maxDist: 1.3 });
+  // interior: short-range cavity occlusion only (the cabin is an enclosed box)
+  const it = model.interior;
+  if (it) {
+    const ie = [
+      { b: it.st, occlude: true, receive: true, apply: hardApply },
+      { b: it.dyn, occlude: true, receive: true, apply: hardApply },
+    ];
+    computeVoxelAO(ie, { cell: 0.03, dirs: 12, maxDist: 0.3 });
+  }
 }

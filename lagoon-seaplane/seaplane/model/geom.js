@@ -13,7 +13,9 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 export const LAYOUTS = {
   paint: { uv: 2, uv1: 2, aBake: 4 },
   hard: { uv: 2, color: 3, aMat: 4, aWob: 4 },
+  rig: { uv: 2, color: 3, aMat: 4, aWob: 4, aRig: 1 },
   glass: { uv: 2, aGlass: 4 },
+  plain: { uv: 2, aRig: 1 },
 };
 
 // Surface kinds understood by the hardware/interior shader (aMat.z).
@@ -37,6 +39,7 @@ export class GeoBuilder {
     }
     if (this.attrs.color) this.cur.color = [1, 1, 1];
     if (this.attrs.aMat) this.cur.aMat = [0.6, 0, KIND.PAINTED, 0];
+    if (this.attrs.aRig) this.cur.aRig = [0];
     this.island = []; // per-vertex island id (paint layout)
     this.curIsland = -1;
     this.uv1Offset = [0, 0];
@@ -64,6 +67,7 @@ export class GeoBuilder {
     return this;
   }
   setPart(partId, wearBias = 0) { this.cur.aBake = [0, partId, wearBias, 0]; return this; }
+  setRig(index) { this.cur.aRig = [index]; return this; }
 
   vert(px, py, pz, nx, ny, nz, u = 0, v = 0, uv1) {
     this.position.push(px, py, pz);

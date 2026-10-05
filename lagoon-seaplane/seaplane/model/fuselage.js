@@ -275,7 +275,7 @@ export function buildFuselage(ctx) {
     // windscreen panes (right and left), following the curved roof corner
     const wsZ0 = D.wsBottomZ + 0.012, wsZ1 = D.wsTopZ - 0.012;
     for (const side of [1, -1]) {
-      glass.set('aGlass', side > 0 ? 0 : 1, side > 0 ? 1 : 0, 0.6, 0);
+      glass.set('aGlass', side > 0 ? 0 : 1, side > 0 ? 1 : 0, 0.6, 1);
       const nzs = lod === 0 ? 10 : 3, nk = lod === 0 ? 10 : 3;
       const kk0 = K_ARCT + 0.15, kk1 = HALF - 0.12;
       grid(glass, nzs, nk, (s, t, out) => {
@@ -320,7 +320,7 @@ export function buildFuselage(ctx) {
     ];
     for (const o of wallOpenings) {
       wallFlange(ctx, o.side, o.z0, o.z1, o.y0, o.y1, island, V, zs, nj, lod);
-      glass.set('aGlass', o.glass, 0, 0.8, 0);
+      glass.set('aGlass', o.glass, 0, 0.8, 1);
       flatPane(glass, o.side, o.z0 + 0.01, o.z1 - 0.01, o.y0 + 0.01, o.y1 - 0.01, 0.012, lod);
     }
     // door openings get a seal frame (the gap between door and fuselage)
@@ -553,7 +553,7 @@ function buildDoor(ctx, name, side, z0, z1, y0, y1, island, lod, glassId) {
   edgeStrip(borderLoop, false);
   edgeStrip(winLoop, true);
   // window glass
-  glass.set('aGlass', glassId, 0, 0.7, 0);
+  glass.set('aGlass', glassId, 0, 0.7, 1);
   const gz0 = zsList[1], gz1 = zsList[zsList.length - 2];
   grid(glass, lod === 0 ? 4 : 1, 1, (s, tt, out) => {
     const z = THREE.MathUtils.lerp(gz0, gz1, s);

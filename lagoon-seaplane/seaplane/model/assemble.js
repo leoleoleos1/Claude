@@ -154,3 +154,19 @@ export function mergeInto(target, b) {
   for (let i = 0; i < b.index.length; i++) target.index.push(b.index[i] + base);
   for (let i = 0; i < b.occluder.length; i++) target.occluder.push(b.occluder[i]);
 }
+
+// Interior group: static shell, rigged controls/needles, gauge faces, horizon card, gauge glass.
+export function assembleInterior(model, mats) {
+  const it = model.interior;
+  const group = new THREE.Group();
+  group.name = 'seaplane.interior';
+  const st = mesh(it.st.toGeometry(), mats.hard, { cast: false, name: 'interior.static' });
+  const dyn = mesh(it.dyn.toGeometry(), mats.hard, { cast: false, name: 'interior.controls' });
+  const gauges = mesh(it.gauge.toGeometry(), mats.gauges, { cast: false, name: 'interior.gauges' });
+  const horizon = mesh(it.horizon.toGeometry(), mats.horizon, { cast: false, name: 'interior.horizon' });
+  const glass = mesh(it.gglass.toGeometry(), mats.glass, { cast: false, name: 'interior.gaugeGlass' });
+  glass.renderOrder = 2;
+  for (const m of [dyn, gauges]) m.frustumCulled = false; // rigged vertices move
+  group.add(st, dyn, gauges, horizon, glass);
+  return { group, st, dyn, gauges, horizon, glass };
+}

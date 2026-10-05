@@ -29,7 +29,47 @@ export function createSharedUniforms() {
     uSpShatter: { value: 0 },
     uSpDetail: { value: 1 },
     uSpBurn: { value: 0 },
+    uSpRig: { value: null },
   };
+}
+
+// Rigid-part ("rig") transforms: per-vertex part index aRig selects a 3x4 matrix
+// from a float texture (3 texels per row). Lets dozens of small moving parts
+// share one draw call.
+export function createRigTexture(count) {
+  const data = new Float32Array(3 * 4 * (count + 1));
+  for (let i = 0; i <= count; i++) { data[i * 12] = 1; data[i * 12 + 5] = 1; data[i * 12 + 10] = 1; }
+  const t = new THREE.DataTexture(data, 3, count + 1, THREE.RGBAFormat, THREE.FloatType);
+  t.minFilter = THREE.NearestFilter;
+  t.magFilter = THREE.NearestFilter;
+  t.needsUpdate = true;
+  return t;
+}
+// write a Matrix4 into row i of the rig texture data
+export function setRigMatrix(tex, i, m) {
+  const e = m.elements, d = tex.image.data, o = i * 12;
+  d[o] = e[0]; d[o + 1] = e[4]; d[o + 2] = e[8]; d[o + 3] = e[12];
+  d[o + 4] = e[1]; d[o + 5] = e[5]; d[o + 6] = e[9]; d[o + 7] = e[13];
+  d[o + 8] = e[2]; d[o + 9] = e[6]; d[o + 10] = e[10]; d[o + 11] = e[14];
+}
+const RIG_PARS = 'attribute float aRig;\nuniform highp sampler2D uSpRig;';
+const RIG_NORMAL = /* glsl */ `
+  mat4 spRigM = mat4(1.0);
+  if (aRig > 0.5) {
+    int spRi = int(aRig + 0.5);
+    vec4 spR0 = texelFetch(uSpRig, ivec2(0, spRi), 0);
+    vec4 spR1 = texelFetch(uSpRig, ivec2(1, spRi), 0);
+    vec4 spR2 = texelFetch(uSpRig, ivec2(2, spRi), 0);
+    spRigM = mat4(spR0.x, spR1.x, spR2.x, 0.0, spR0.y, spR1.y, spR2.y, 0.0, spR0.z, spR1.z, spR2.z, 0.0, spR0.w, spR1.w, spR2.w, 1.0);
+    objectNormal = mat3(spRigM) * objectNormal;
+  }`;
+const RIG_POS = `  if (aRig > 0.5) transformed = (spRigM * vec4(transformed, 1.0)).xyz;`;
+function injectRig(vs, U, shader) {
+  shader.uniforms.uSpRig = U.uSpRig;
+  vs = inject(vs, '#include <common>', RIG_PARS);
+  vs = inject(vs, '#include <beginnormal_vertex>', RIG_NORMAL);
+  vs = inject(vs, '#include <begin_vertex>', RIG_POS);
+  return vs;
 }
 
 function inject(src, marker, code, after = true) {
@@ -133,6 +173,7 @@ export function createHardMaterial(U, { detail = true, name = 'seaplane.hard' } 
     shader.uniforms.uSpLamp = U.uSpLamp;
     shader.uniforms.uSpBurn = U.uSpBurn;
     let vs = shader.vertexShader, fs = shader.fragmentShader;
+    if (detail) vs = injectRig(vs, U, shader);
     vs = inject(vs, '#include <common>', `attribute vec4 aMat;\nattribute vec4 aWob;\nuniform vec3 uSpWob[16];\nvarying vec4 vSpMat;\nvarying vec3 vSpObj;\nvarying vec2 vSpUv;`);
     vs = inject(vs, '#include <begin_vertex>', /* glsl */ `
   vSpMat = aMat;
@@ -303,7 +344,7 @@ export function createGlassMaterial(U, { detail = true } = {}) {
   }` : ''}
   // rain: droplets drift with the airflow, streak at speed
   float spDropH = 0.0;
-  if (uSpRain > 0.01) {
+  if (uSpRain > 0.01 && vSpGlass.w > 0.5) {
     for (int L = 0; L < 2; L++) {
       float sc = L == 0 ? 11.0 : 19.0;
       vec2 g = spUv * vec2(sc * 1.3, sc) + vec2(spPane * 7.3, -uSpFlow * (L == 0 ? 1.0 : 1.4));
@@ -342,4 +383,19 @@ export function placeholderTextures() {
   const d = new THREE.DataTexture(new Uint8Array([255, 150, 0, 128]), 1, 1);
   d.needsUpdate = true;
   return { map: a, data: d };
+}
+
+// Instrument faces (canvas atlas) with backlighting, rig-capable for rotating cards.
+export function createGaugeMaterial(U, map, { name = 'seaplane.gauges', rig = true } = {}) {
+  const m = new THREE.MeshStandardMaterial({
+    name, map, emissiveMap: map, emissive: new THREE.Color(1.0, 0.62, 0.32), emissiveIntensity: 0,
+    roughness: 0.55, metalness: 0.0, envMapIntensity: 0.6,
+  });
+  if (rig) {
+    m.onBeforeCompile = (shader) => { shader.vertexShader = injectRig(shader.vertexShader, U, shader); };
+    m.customProgramCacheKey = () => 'seaplane-gauge-rig-v1';
+  } else {
+    m.customProgramCacheKey = () => 'seaplane-gauge-v1';
+  }
+  return m;
 }

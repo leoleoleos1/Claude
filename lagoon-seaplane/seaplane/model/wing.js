@@ -144,7 +144,7 @@ export function buildWing(ctx) {
   if (lod < 2) {
     // skylight glass wrapped around the leading edge
     for (const side of [1, -1]) {
-      glass.set('aGlass', side > 0 ? 10 : 11, 0, 0.9, 0);
+      glass.set('aGlass', side > 0 ? 10 : 11, 0, 0.9, 1);
       grid(glass, lod === 0 ? 6 : 2, lod === 0 ? 8 : 3, (s, t, out) => {
         const x = side * THREE.MathUtils.lerp(SKY_X0 + 0.01, SKY_X1 - 0.01, s);
         const sp = THREE.MathUtils.lerp(S_SKY_LO + 0.004, S_SKY_HI - 0.004, t);
