@@ -102,10 +102,11 @@ export function assembleLod0(model, mats) {
   const propPivot = new THREE.Group();
   propPivot.name = 'prop';
   propPivot.position.copy(model.prop.hub);
-  const propMesh = mesh(model.prop.builder.toGeometry(), mats.hard, { name: 'prop.blades' });
-  propPivot.add(propMesh);
+  const spinner = mesh(model.prop.builder.toGeometry(), mats.hard, { name: 'prop.spinner' });
+  const propMesh = mesh(model.prop.blades.toGeometry(), mats.hard, { name: 'prop.blades' });
+  propPivot.add(spinner, propMesh);
   group.add(propPivot);
-  return { group, statics, hinges, doors, propPivot, propMesh };
+  return { group, statics, hinges, doors, propPivot, propMesh, spinner };
 }
 
 // LOD1 / LOD2: static meshes only (control surfaces folded into the statics,
@@ -124,6 +125,13 @@ export function assembleLodN(model, mats, lod) {
     const d = model.doors[key];
     mergeInto(ctx.paint, d.paint); mergeInto(ctx.glass, d.glass); mergeInto(ctx.hard, d.hard);
   }
+  // LOD2: the spinner joins the static mesh (its spin is invisible from > 150 m)
+  if (lod === 2) {
+    const sp = model.prop.builder;
+    const s0 = ctx.hard.vertexCount;
+    mergeInto(ctx.hard, sp);
+    ctx.hard.transform(s0, new THREE.Matrix4().makeTranslation(model.prop.hub.x, model.prop.hub.y, model.prop.hub.z));
+  }
   const statics = {
     paint: mesh(ctx.paint.toGeometry(), mats.paintLod, { name: 'paint' }),
     hard: mesh(ctx.hard.toGeometry(), mats.hardLod, { name: 'hard', cast: lod === 1 }),
@@ -135,10 +143,12 @@ export function assembleLodN(model, mats, lod) {
   for (const k in statics) group.add(statics[k]);
   const propPivot = new THREE.Group();
   propPivot.position.copy(model.prop.hub);
-  const propMesh = mesh(model.prop.builder.toGeometry(), mats.hardLod, { name: 'prop', cast: false });
+  const propMesh = mesh(model.prop.blades.toGeometry(), mats.hardLod, { name: 'prop.blades', cast: false });
   propPivot.add(propMesh);
+  let spinner = null;
+  if (lod < 2) { spinner = mesh(model.prop.builder.toGeometry(), mats.hardLod, { name: 'prop.spinner', cast: false }); propPivot.add(spinner); }
   group.add(propPivot);
-  return { group, statics, propPivot, propMesh };
+  return { group, statics, propPivot, propMesh, spinner };
 }
 
 // Append builder b into target (same layout).

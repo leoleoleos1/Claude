@@ -52,7 +52,7 @@ export class Controls {
     this.wheelStep = 0.05;
     this.commands = []; // discrete edge events for the plane
     this.held = { engine: false, interact: false };
-    this._engineDown = 0;
+    this._engineHeldT = 0;
     this._dom = null;
     this._h = null;
     this.enabled = true;
@@ -75,7 +75,7 @@ export class Controls {
         else if (this._match('waterRudder', code)) this.commands.push('toggleWaterRudder');
         else if (this._match('lights', code)) this.commands.push('cycleLights');
         else if (this._match('camera', code)) this.commands.push('toggleCamera');
-        else if (this._match('engine', code)) { this.held.engine = true; this._engineDown = performance.now(); this.commands.push('engineDown'); }
+        else if (this._match('engine', code)) { this.held.engine = true; this._engineHeldT = 0; this.commands.push('engineDown'); }
         else if (this._match('interact', code)) { this.held.interact = true; this.commands.push('interactDown'); }
         if (code === 'PageUp' || code === 'PageDown') e.preventDefault();
       },
@@ -84,8 +84,8 @@ export class Controls {
         this.keys.delete(code);
         if (this._match('engine', code)) {
           this.held.engine = false;
-          const dtMs = performance.now() - this._engineDown;
-          this.commands.push(dtMs < 280 ? 'engineTap' : 'engineUp');
+          // tap vs. hold measured in simulation time (update(dt)), not wall-clock time
+          this.commands.push(this._engineHeldT < 0.28 ? 'engineTap' : 'engineUp');
         } else if (this._match('interact', code)) { this.held.interact = false; this.commands.push('interactUp'); }
       },
       blur: () => { this.keys.clear(); this.held.engine = false; this.held.interact = false; this.mouseYoke = false; },
@@ -140,6 +140,7 @@ export class Controls {
 
   // smoothing step (call every frame with real dt)
   update(dt) {
+    if (this.held.engine) this._engineHeldT += dt;
     const k = (a) => (this._down(a) ? 1 : 0);
     let tp = k('pitchUp') - k('pitchDown');
     let tr = k('rollRight') - k('rollLeft');

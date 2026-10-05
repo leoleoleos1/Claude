@@ -33,6 +33,7 @@ export class EngineModel {
     this.propHealth = 1;
     this.fire = false;
     this.flood = 0;
+    this.catchT = 9;
     this.crankTime = 0;
     this.catchAt = 1.5;
     this.attempt = 0;
@@ -130,10 +131,14 @@ export class EngineModel {
         this._shut += h;
         if (this._shut > 0.4) { this.state = 'off'; this.events.push('runDown'); this._shut = 0; }
       }
-      const mp = 0.12 + 0.88 * this.throttle;
-      const g = 1 - ((rpm - 1900) / 2300) ** 2;
+      // idle mixture keeps ~700 rpm at closed throttle; right after the catch the
+      // engine flares (pilot pumping the throttle) and then settles into a rough idle
+      this.catchT += h;
+      const flare = this.catchT < 1.5 ? 0.7 * (1 - this.catchT / 1.5) : 0;
+      const mp = 0.2 + 0.8 * this.throttle + flare;
+      const g = 1 - ((rpm - 1900) / 2600) ** 2;
       const altK = clamp(rhoK, 0.2, 1.1);
-      let q = E.qMax * mp * clamp(g, 0.25, 1) * Math.sqrt(this.health) * altK;
+      let q = E.qMax * mp * clamp(g, 0.55, 1) * Math.sqrt(this.health) * altK;
       // rough idle after start, misfires when damaged or starved
       this.rough = Math.max(0, this.rough - h * 0.35);
       const missRate = (1 - this.health) * 6 + this.rough * 3 + (this.starve > 0 ? 8 : 0) + (1 - this.propHealth) * 1.5;
@@ -143,7 +148,7 @@ export class EngineModel {
       q *= 1 + (this.rand() - 0.5) * this.rough * 0.25;
       if (this.mixture < 0.5) q = 0;
       qComb = q;
-      if (rpm < 280 && this.throttle < 0.95) this._stall('lowrpm', 0);
+      if (this.catchT > 2.5 && rpm < 260 && this.throttle < 0.95) this._stall('lowrpm', 0);
       // overspeed damage
       if (rpm > 2650) this.health = Math.max(0, this.health - (rpm - 2650) * 0.00002 * h * 60);
     } else if (this.state === 'cranking') {
@@ -161,6 +166,7 @@ export class EngineModel {
       if (canCatch && this.crankTime > this.catchAt && rpm > 110) {
         this.state = 'running';
         this.rough = 1;
+        this.catchT = 0;
         this.events.push('catch');
       }
       if (!canCatch && this.crankTime > 6 && this.rand() < h * 0.5) this.events.push('backfire');

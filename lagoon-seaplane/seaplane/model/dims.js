@@ -9,7 +9,7 @@ import * as THREE from 'three';
 import { curve } from './geom.js';
 
 export const CG_MODEL = new THREE.Vector3(0, 2.25, 1.1);
-const DEG = Math.PI / 180;
+export const DEG = Math.PI / 180;
 
 // Part ids written into the bake attribute (aBake.y); the texture bake keys its
 // paint rules on these.
@@ -253,4 +253,3 @@ export function wingSurfacePoint(x, c, side, out = new THREE.Vector3()) {
 
 export function toLocal(v, out = new THREE.Vector3()) { return out.copy(v).sub(CG_MODEL); }
 export function L(x, y, z) { return new THREE.Vector3(x - CG_MODEL.x, y - CG_MODEL.y, z - CG_MODEL.z); }
-export { DEG };

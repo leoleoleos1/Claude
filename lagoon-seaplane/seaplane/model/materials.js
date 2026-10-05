@@ -266,8 +266,8 @@ export function createHardMaterial(U, { detail = true, name = 'seaplane.hard' } 
   } else {
     // painted / metal / plastic: scratches, smudges, chips
     float scr = smoothstep(0.92, 0.98, sp_noise3(spO * vec3(160.0, 6.0, 160.0)));
-    float chipN = sp_fbm3(spO * 38.0, 3);
-    float chip = (spKind == ${KIND.PAINTED.toFixed(1)}) ? smoothstep(0.86 - spGrime * 0.4, 0.9 - spGrime * 0.4, chipN) : 0.0;
+    float chipN = sp_fbm3(spO * 52.0, 3);
+    float chip = (spKind == ${KIND.PAINTED.toFixed(1)}) ? smoothstep(0.8 - spGrime * 0.14, 0.83 - spGrime * 0.14, chipN) : 0.0;
     diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.5, 0.5, 0.48), chip);
     metalnessFactor = mix(metalnessFactor, 1.0, chip);
     roughnessFactor = mix(roughnessFactor, 0.3, chip);

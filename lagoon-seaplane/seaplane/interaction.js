@@ -84,19 +84,19 @@ export class Interaction {
       id: 'seat.pilot', local: L(-0.33, 2.5, 1.15), radius: 2.3, viewCone: 0.5, hold: false,
       labelKey: 'seaplane.seat.pilot', label: 'Get in (pilot)',
       enabled: () => !this.seated && !this.transition && P.doorOpen('doorL') && !P.physics.wreck,
-      use: (from) => this.seat('pilot', from && from.position, from && from.quaternion),
+      use: (from) => P.api.seat('pilot', from && from.position, from && from.quaternion),
     });
     add({
       id: 'seat.copilot', local: L(0.33, 2.5, 1.15), radius: 2.3, viewCone: 0.5, hold: false,
       labelKey: 'seaplane.seat.copilot', label: 'Get in (co-pilot)',
       enabled: () => !this.seated && !this.transition && (P.doorOpen('doorR') || P.doorOpen('cargo')) && !P.physics.wreck,
-      use: (from) => this.seat('copilot', from && from.position, from && from.quaternion),
+      use: (from) => P.api.seat('copilot', from && from.position, from && from.quaternion),
     });
     add({
       id: 'seat.exit', local: L(-0.33, 2.9, 1.15), radius: 1.2, viewCone: -1, hold: true, holdTime: 0.6,
       labelKey: 'seaplane.seat.exit', label: 'Hold E: Get out',
       enabled: () => this.seated && !this.transition,
-      use: () => this.unseat(),
+      use: () => P.api.unseat(),
     });
     for (const side of ['L', 'R']) {
       const cleat = P.anchors['cleatBow' + side];
@@ -109,10 +109,10 @@ export class Interaction {
       });
       const bow = P.anchors['bow' + side];
       add({
-        id: 'pushoff.' + side, local: bow ? bow.clone() : L(0, 0, 0), radius: 1.6, viewCone: 0.2, hold: true, holdTime: 99,
+        id: 'pushoff.' + side, local: bow ? bow.clone() : L(0, 0, 0), radius: 1.8, viewCone: 0.2, hold: true, holdTime: 0, continuous: true,
         labelKey: 'seaplane.pushoff', label: 'Hold E: Push off the beach',
-        enabled: () => !this.seated && P.physics.out.beached && !P.physics.moor.length,
-        use: () => {}, // continuous while held (see update)
+        enabled: () => !this.seated && (P.physics.out.beached || (P.physics.out.groundContact && P.physics.out.groundSpeed < 1.5)) && !P.physics.moor.length,
+        use: () => P.api.pushOff(1), // continuous: the host calls use() every frame while E is held
       });
     }
     add({
@@ -184,6 +184,13 @@ export class Interaction {
     this.seatId = id;
     P.emit('seatStart', { id });
     return true;
+  }
+
+  seatInstant(id) {
+    this.transition = null;
+    this.seated = true;
+    this.seatId = id;
+    this.plane.emit('seated', { id });
   }
 
   canExit() {
@@ -281,12 +288,16 @@ export class Interaction {
     seatCam.get(eye, lookYaw, lookPitch, planePos, planeQuat, outPos, outQuat);
     if (tr) {
       const k = ease(Math.min(tr.t, 1));
-      const t = tr.toSeat ? k : k;
-      this._pathPoint(tr, t, this._v);
-      const blend = tr.toSeat ? k : 1 - k;
-      outPos.lerp(this._v, 1 - (tr.toSeat ? k * k : 0)).lerp(this._v, tr.toSeat ? 0 : 1);
-      if (!tr.toSeat) outPos.copy(this._v);
-      if (tr.q0 && tr.toSeat) { this._q.copy(tr.q0).slerp(outQuat, blend); outQuat.copy(this._q); }
+      this._pathPoint(tr, k, this._v);
+      if (tr.toSeat) {
+        // follow the path through the door, settle into the live seat pose at the end
+        const b = k < 0.75 ? 0 : ease((k - 0.75) / 0.25);
+        outPos.lerpVectors(this._v, outPos, b);
+        if (tr.q0) { this._q.copy(tr.q0).slerp(outQuat, k); outQuat.copy(this._q); }
+      } else {
+        const b = k > 0.25 ? 1 : ease(k / 0.25);
+        outPos.lerp(this._v, b);
+      }
     }
     return true;
   }

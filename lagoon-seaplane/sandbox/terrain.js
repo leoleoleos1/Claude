@@ -94,7 +94,7 @@ export function normalAt(x, z, out = new THREE.Vector3()) {
 
 // --- terrain meshes --------------------------------------------------------
 function terrainMaterial() {
-  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 });
+  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0, envMapIntensity: 0.55 });
   m.onBeforeCompile = (s) => {
     s.vertexShader = s.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vTW;')
       .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvTW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
@@ -115,8 +115,8 @@ float tn(vec2 p){ vec2 i = floor(p), f = fract(p); vec2 u = f*f*(3.0-2.0*f); ret
 }
 
 function colorFor(h, ny, x, z, out) {
-  const sandDry = [0.5, 0.42, 0.3], sandWet = [0.3, 0.25, 0.18], seabed = [0.55, 0.52, 0.4];
-  const grass = [0.2, 0.27, 0.1], jungle = [0.07, 0.13, 0.05], rock = [0.24, 0.22, 0.19];
+  const sandDry = [0.17, 0.125, 0.075], sandWet = [0.085, 0.064, 0.042], seabed = [0.3, 0.27, 0.19];
+  const grass = [0.09, 0.14, 0.04], jungle = [0.035, 0.07, 0.025], rock = [0.13, 0.115, 0.095];
   const n = fbm(x * 0.05, z * 0.05, 2, 77);
   let c;
   if (h < -0.3) c = seabed;
@@ -345,42 +345,73 @@ export class World {
   }
 
   // env.contact against static shapes (spheres, boxes, vertical cylinders)
-  contact(p, radius, out) {
-    let hit = false, best = 0;
-    const n = out.normal || (out.normal = new THREE.Vector3());
-    for (const s of this.colliders.spheres) {
-      const dx = p.x - s.x, dy = p.y - s.y, dz = p.z - s.z;
-      const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
-      const pen = s.r + radius - d;
-      if (pen > best) { best = pen; hit = true; if (d > 1e-6) n.set(dx / d, dy / d, dz / d); else n.set(0, 1, 0); }
-    }
-    for (const c of this.colliders.cylinders) {
-      if (p.y < c.y0 - radius || p.y > c.y1 + radius) continue;
-      const dx = p.x - c.x, dz = p.z - c.z;
-      const d = Math.hypot(dx, dz);
-      const pen = c.r + radius - d;
-      if (pen > best) { best = pen; hit = true; n.set(dx / (d || 1), 0, dz / (d || 1)); }
-    }
-    for (const b of this.colliders.boxes) {
-      // oriented box: centre, half extents, rotation about y (world = R(ry) * local)
-      const cr = Math.cos(b.ry), sr = Math.sin(b.ry);
-      const lx0 = p.x - b.x, lz0 = p.z - b.z;
-      const lx = cr * lx0 - sr * lz0, lz = sr * lx0 + cr * lz0, ly = p.y - b.y;
-      const qx = Math.max(-b.hx, Math.min(b.hx, lx)), qy = Math.max(-b.hy, Math.min(b.hy, ly)), qz = Math.max(-b.hz, Math.min(b.hz, lz));
-      let dx = lx - qx, dy = ly - qy, dz = lz - qz;
-      let d = Math.sqrt(dx * dx + dy * dy + dz * dz);
-      let pen;
-      if (d > 1e-6) { pen = radius - d; dx /= d; dy /= d; dz /= d; }
-      else {
-        // inside: push out along the shallowest axis
-        const ex = b.hx - Math.abs(lx), ey = b.hy - Math.abs(ly), ez = b.hz - Math.abs(lz);
-        if (ex < ey && ex < ez) { pen = ex + radius; dx = Math.sign(lx); dy = 0; dz = 0; }
-        else if (ey < ez) { pen = ey + radius; dx = 0; dy = Math.sign(ly); dz = 0; }
-        else { pen = ez + radius; dx = 0; dy = 0; dz = Math.sign(lz); }
+  // spatial hash over the static colliders (rebuilt lazily when shapes are added)
+  _buildGrid() {
+    const C = 12;
+    const grid = new Map();
+    const put = (shape, type, x0, z0, x1, z1) => {
+      for (let gx = Math.floor(x0 / C); gx <= Math.floor(x1 / C); gx++) {
+        for (let gz = Math.floor(z0 / C); gz <= Math.floor(z1 / C); gz++) {
+          const key = gx * 100003 + gz;
+          let cell = grid.get(key);
+          if (!cell) { cell = { spheres: [], cylinders: [], boxes: [] }; grid.set(key, cell); }
+          cell[type].push(shape);
+        }
       }
-      if (pen > best) {
-        best = pen; hit = true;
-        n.set(cr * dx + sr * dz, dy, -sr * dx + cr * dz);
+    };
+    for (const s of this.colliders.spheres) put(s, 'spheres', s.x - s.r, s.z - s.r, s.x + s.r, s.z + s.r);
+    for (const c of this.colliders.cylinders) put(c, 'cylinders', c.x - c.r, c.z - c.r, c.x + c.r, c.z + c.r);
+    for (const b of this.colliders.boxes) { const e = Math.hypot(b.hx, b.hz); put(b, 'boxes', b.x - e, b.z - e, b.x + e, b.z + e); }
+    this._grid = grid;
+    this._gridC = C;
+    this._gridN = this.colliders.spheres.length + this.colliders.cylinders.length + this.colliders.boxes.length;
+  }
+
+  contact(p, radius, out) {
+    const n = out.normal || (out.normal = new THREE.Vector3());
+    const total = this.colliders.spheres.length + this.colliders.cylinders.length + this.colliders.boxes.length;
+    if (!this._grid || this._gridN !== total) this._buildGrid();
+    const C = this._gridC;
+    let hit = false, best = 0;
+    const gx0 = Math.floor((p.x - radius) / C), gx1 = Math.floor((p.x + radius) / C);
+    const gz0 = Math.floor((p.z - radius) / C), gz1 = Math.floor((p.z + radius) / C);
+    for (let gx = gx0; gx <= gx1; gx++) for (let gz = gz0; gz <= gz1; gz++) {
+      const cell = this._grid.get(gx * 100003 + gz);
+      if (!cell) continue;
+      for (const s of cell.spheres) {
+        const dx = p.x - s.x, dy = p.y - s.y, dz = p.z - s.z;
+        const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        const pen = s.r + radius - d;
+        if (pen > best) { best = pen; hit = true; if (d > 1e-6) n.set(dx / d, dy / d, dz / d); else n.set(0, 1, 0); }
+      }
+      for (const c of cell.cylinders) {
+        if (p.y < c.y0 - radius || p.y > c.y1 + radius) continue;
+        const dx = p.x - c.x, dz = p.z - c.z;
+        const d = Math.hypot(dx, dz);
+        const pen = c.r + radius - d;
+        if (pen > best) { best = pen; hit = true; n.set(dx / (d || 1), 0, dz / (d || 1)); }
+      }
+      for (const b of cell.boxes) {
+        // oriented box: centre, half extents, rotation about y (world = R(ry) * local)
+        const cr = Math.cos(b.ry), sr = Math.sin(b.ry);
+        const lx0 = p.x - b.x, lz0 = p.z - b.z;
+        const lx = cr * lx0 - sr * lz0, lz = sr * lx0 + cr * lz0, ly = p.y - b.y;
+        const qx = Math.max(-b.hx, Math.min(b.hx, lx)), qy = Math.max(-b.hy, Math.min(b.hy, ly)), qz = Math.max(-b.hz, Math.min(b.hz, lz));
+        let dx = lx - qx, dy = ly - qy, dz = lz - qz;
+        const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        let pen;
+        if (d > 1e-6) { pen = radius - d; dx /= d; dy /= d; dz /= d; }
+        else {
+          // inside: push out along the shallowest axis
+          const ex = b.hx - Math.abs(lx), ey = b.hy - Math.abs(ly), ez = b.hz - Math.abs(lz);
+          if (ex < ey && ex < ez) { pen = ex + radius; dx = Math.sign(lx); dy = 0; dz = 0; }
+          else if (ey < ez) { pen = ey + radius; dx = 0; dy = Math.sign(ly); dz = 0; }
+          else { pen = ez + radius; dx = 0; dy = 0; dz = Math.sign(lz); }
+        }
+        if (pen > best) {
+          best = pen; hit = true;
+          n.set(cr * dx + sr * dz, dy, -sr * dx + cr * dz);
+        }
       }
     }
     out.depth = best;

@@ -37,8 +37,8 @@ export const GAUGE_LAYOUT = [
   { name: 'tach', u: -0.09, v: 0.1, r: 0.041, needles: [{ key: 'tach', len: 0.035 }] },
   { name: 'manifold', u: 0.015, v: 0.1, r: 0.041, needles: [{ key: 'mp', len: 0.035 }] },
   { name: 'cht', u: 0.115, v: 0.105, r: 0.03, needles: [{ key: 'cht', len: 0.025 }] },
-  { name: 'oil', u: -0.09, v: -0.005, r: 0.036, needles: [{ key: 'oilT', len: 0.03, off: -0.012 }, { key: 'oilP', len: 0.03, off: 0.012 }] },
-  { name: 'fuel', u: 0.015, v: -0.005, r: 0.036, needles: [{ key: 'fuelL', len: 0.03, off: -0.012 }, { key: 'fuelR', len: 0.03, off: 0.012 }] },
+  { name: 'oil', u: -0.09, v: -0.005, r: 0.036, needles: [{ key: 'oilT', len: 0.021, off: -0.0121 }, { key: 'oilP', len: 0.021, off: 0.0121 }] },
+  { name: 'fuel', u: 0.015, v: -0.005, r: 0.036, needles: [{ key: 'fuelL', len: 0.021, off: -0.0121 }, { key: 'fuelR', len: 0.021, off: 0.0121 }] },
   { name: 'amps', u: -0.09, v: -0.1, r: 0.028, needles: [{ key: 'amps', len: 0.023 }] },
   { name: 'flaps', u: 0.015, v: -0.1, r: 0.028, needles: [{ key: 'flaps', len: 0.023 }] },
   { name: 'clock', u: -0.53, v: -0.08, r: 0.026, needles: [{ key: 'clockH', len: 0.014, w: 1.5 }, { key: 'clockM', len: 0.021 }] },
@@ -301,10 +301,10 @@ export function buildCockpit(ctx) {
     gglass.transform(s1, mat(anchors.compass.x, anchors.compass.y, anchors.compass.z + 0.036));
   }
   // stall warning light and annunciators
-  st.setColor(0xd2261a).setMat(0.2, 0, KIND.LAMP, 6 / 8);
+  st.setColor(0xd2261a).setMat(0.2, 0, KIND.LAMP, 3 / 8); // lamp 3: stall warning
   lathe(st, [[0.0, 0.012], [0.008, 0.01], [0.009, 0.0]], 10, panelMat(-0.16, 0.2, 0.0));
   anchors.stallLight = panelPoint(-0.16, 0.2, 0.01);
-  st.setColor(0xd8a520).setMat(0.2, 0, KIND.LAMP, 6 / 8);
+  st.setColor(0xd8a520).setMat(0.2, 0, KIND.LAMP, 4 / 8); // lamp 4: low fuel / volts
   lathe(st, [[0.0, 0.01], [0.006, 0.008], [0.007, 0.0]], 10, panelMat(-0.13, 0.2, 0.0));
 
   // ============================ switches & small controls ============================

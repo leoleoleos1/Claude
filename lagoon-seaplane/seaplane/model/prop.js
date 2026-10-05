@@ -14,7 +14,7 @@ const PITCH = 2.0;
 
 export function buildProp(ctx) {
   const { lod } = ctx;
-  const b = ctx.newBuilder('hard');
+  let b = ctx.newBuilder('hard');
   b.localSpace = true; // built around the hub; not shifted into the plane frame
   const rand = rng(ctx.seed * 31 + 5);
   // ---------------- spinner ----------------
@@ -43,7 +43,10 @@ export function buildProp(ctx) {
   // back plate
   b.setColor(0x2b2925).setMat(0.5, 0.7, KIND.METAL, 0.6);
   lathe(b, [[0.001, 0.2], [0.29, 0.2], [0.31, 0.17], [0.3, 0.16]], lod === 0 ? 32 : 12, null, { flip: true });
-  // ---------------- blades ----------------
+  // ---------------- blades (own builder: hidden behind the blur disc at speed) ----------------
+  const spinner = b;
+  b = ctx.newBuilder('hard');
+  b.localSpace = true;
   const rs = lod === 0 ? [0.12, 0.2, 0.28, 0.36, 0.45, 0.6, 0.75, 0.9, 1.05, 1.15, 1.2, 1.24, 1.27, 1.29, 1.3]
     : lod === 1 ? [0.15, 0.36, 0.7, 1.05, 1.22, 1.3] : [0.2, 0.7, 1.3];
   const ns = lod === 0 ? 22 : lod === 1 ? 10 : 6;
@@ -114,5 +117,5 @@ export function buildProp(ctx) {
     const m = new THREE.Matrix4().makeRotationZ(-phi);
     b.transform(start, m);
   }
-  return { builder: b, hub: v3(0, DIM.thrustY, DIM.propZ) };
+  return { builder: spinner, blades: b, hub: v3(0, DIM.thrustY, DIM.propZ) };
 }

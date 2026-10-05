@@ -311,7 +311,7 @@ export function buildTail(ctx) {
   const st = new THREE.Vector3(0, FIN.topY + 0.035, FIN.leTopZ + 0.24);
   hard.setColor(0x2a2a26).setMat(0.5, 0.4, KIND.PAINTED, 0.3);
   box(hard, 0.05, 0.03, 0.14, mat(st.x, st.y - 0.01, st.z));
-  hard.setColor(0xf0ecdf).setMat(0.1, 0, KIND.LAMP, 0);
+  hard.setColor(0xf0ecdf).setMat(0.1, 0, KIND.LAMP, 1 / 8); // lamp 1: strobe
   lathe(hard, [[0, 0.045], [0.02, 0.04], [0.026, 0.0]], 8, mat(st.x, st.y + 0.005, st.z, -Math.PI / 2, 0, 0));
   lights.strobe = st.clone().add(new THREE.Vector3(0, 0.05, 0));
   if (lod < 2) {

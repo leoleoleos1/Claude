@@ -21,12 +21,15 @@ export const NEEDLE = {
   airspeed: (kt) => sweep(kt, 0, 160, -150, 150),
   altimeter100: (ft) => ((ft % 1000) / 1000) * Math.PI * 2,
   altimeter1000: (ft) => ((ft % 10000) / 10000) * Math.PI * 2,
-  vsi: (fpm) => sweep(fpm, -2000, 2000, -170 + 180, 170 + 180) - Math.PI,
+  vsi: (fpm) => sweep(fpm, -2000, 2000, 100, 440), // 0 at 9 o'clock, climb clockwise over the top
   tach: (rpm) => sweep(rpm, 0, 3500, -135, 135),
   manifold: (inhg) => sweep(inhg, 10, 40, -135, 135),
-  oilT: (c) => sweep(c, 0, 120, -60, 60) - Math.PI / 2 + Math.PI / 2,
-  oilP: (psi) => sweep(psi, 0, 120, -60, 60),
-  fuel: (frac) => sweep(frac, 0, 1, -60, 60),
+  // dual gauges: left needle pivots left of centre and sweeps the left side (low at the bottom),
+  // right needle mirrors it on the right side
+  oilT: (c) => sweep(c, 0, 120, -150, -30),
+  oilP: (psi) => sweep(psi, 0, 120, 150, 30),
+  fuelL: (frac) => sweep(frac, 0, 1, -150, -30),
+  fuelR: (frac) => sweep(frac, 0, 1, 150, 30),
   amps: (a) => sweep(a, -60, 60, -60, 60),
   flaps: (deg) => sweep(deg, 0, 30, -60, 60),
   cht: (c) => sweep(c, 0, 300, -60, 60),
@@ -146,10 +149,10 @@ export function createGaugeAtlas(size = 1024) {
     }
   });
   at('vsi', (c) => {
-    const A = (f) => map(f, -2000, 2000, 10, 350);
-    ticks(c, 10, 350, 40, 108, 118, 2); ticks(c, 10, 350, 8, 98, 118, 4);
+    const A = (f) => map(f, -2000, 2000, 100, 440);
+    ticks(c, 100, 440, 40, 108, 118, 2); ticks(c, 100, 440, 8, 98, 118, 4);
     nums(c, [[A(0), '0'], [A(500), '.5'], [A(1000), '1'], [A(1500), '1.5'], [A(2000), '2'], [A(-500), '.5'], [A(-1000), '1'], [A(-1500), '1.5']], 82, 18);
-    label(c, 'UP', -30, 13); label(c, 'DN', 30, 13); label(c, 'VERTICAL SPEED', 52, 9);
+    label(c, 'UP', -34, 13); label(c, 'DN', 34, 13); label(c, 'VERTICAL SPEED', 56, 9); label(c, '1000 FT/MIN', -56, 8);
   });
   at('tach', (c) => {
     const A = (r) => map(r, 0, 3500, -135, 135);
@@ -167,28 +170,42 @@ export function createGaugeAtlas(size = 1024) {
     nums(c, [10, 15, 20, 25, 30, 35, 40].map((v) => [A(v), String(v)]), 78, 20);
     label(c, 'MAN PRESS', -32, 12); label(c, 'IN.HG', 32, 12);
   });
-  const dual = (c, l1, l2, arcs1, arcs2) => {
-    // two half gauges, needles pivot left (-) and right (+)
-    for (const [side, l, arcs] of [[-1, l1, arcs1], [1, l2, arcs2]]) {
-      c.save(); c.translate(side * 30, 0);
-      for (const [a0, a1, col] of arcs) { c.strokeStyle = col; c.lineWidth = 8; c.beginPath(); c.arc(0, 0, 80, (side > 0 ? 0 : Math.PI) + a0 * DEG * side, (side > 0 ? 0 : Math.PI) + a1 * DEG * side, side < 0); c.stroke(); }
-      c.restore();
-      label(c, l, side * 60 > 0 ? 0 : 0, 12);
-    }
+  // dual gauges: needle pivots at x = -/+43 px, each sweeping its own side
+  const PIV = 43;
+  const sideArc = (c, side, a0, a1, r, w, col) => {
+    c.save(); c.translate(side * PIV, 0);
+    c.strokeStyle = col; c.lineWidth = w;
+    c.beginPath(); c.arc(0, 0, r, Math.min(a0, a1) * DEG - Math.PI / 2, Math.max(a0, a1) * DEG - Math.PI / 2); c.stroke();
+    c.restore();
   };
+  const sideTicks = (c, side, a0, a1, n, r0, r1, w) => { c.save(); c.translate(side * PIV, 0); ticks(c, a0, a1, n, r0, r1, w); c.restore(); };
+  const sideNums = (c, side, list, r, size) => { c.save(); c.translate(side * PIV, 0); nums(c, list, r, size); c.restore(); };
+  const pivotDots = (c) => { c.fillStyle = '#2a2a2d'; for (const sx of [-1, 1]) { c.beginPath(); c.arc(sx * PIV, 0, 9, 0, Math.PI * 2); c.fill(); } };
   at('oil', (c) => {
-    c.strokeStyle = '#2f9a3d'; c.lineWidth = 8;
-    c.beginPath(); c.arc(-30, 30, 82, -Math.PI * 0.5 - 0.6, -Math.PI * 0.5 + 0.3); c.stroke();
-    c.beginPath(); c.arc(30, 30, 82, -Math.PI * 0.5 - 0.3, -Math.PI * 0.5 + 0.6); c.stroke();
-    ticks(c, -60, 60, 6, 100, 112, 3);
-    label(c, 'OIL', -20, 16); label(c, 'TEMP', 56, 11); label(c, '°C      PSI', 72, 11);
-    dual(c, '', '', [], []);
+    const T = (v) => map(v, 0, 120, -150, -30), Pp = (v) => map(v, 0, 120, 150, 30);
+    sideArc(c, -1, T(40), T(100), 70, 7, '#2f9a3d');
+    sideArc(c, -1, T(108), T(120), 70, 7, '#d22f22');
+    sideTicks(c, -1, -150, -30, 6, 62, 76, 3);
+    sideArc(c, 1, Pp(50), Pp(90), 70, 7, '#2f9a3d');
+    sideArc(c, 1, Pp(100), Pp(120), 70, 7, '#d22f22');
+    sideArc(c, 1, Pp(0), Pp(25), 70, 7, '#d22f22');
+    sideTicks(c, 1, 30, 150, 6, 62, 76, 3);
+    sideNums(c, -1, [[-150, '0'], [-90, '60'], [-30, '120']], 46, 12);
+    sideNums(c, 1, [[150, '0'], [90, '60'], [30, '120']], 46, 12);
+    label(c, 'OIL', -84, 15);
+    label(c, '°C           PSI', 84, 12);
+    pivotDots(c);
   });
   at('fuel', (c) => {
-    c.strokeStyle = '#d22f22'; c.lineWidth = 8;
-    c.beginPath(); c.arc(0, 30, 82, -Math.PI * 0.5 - 1.05, -Math.PI * 0.5 - 0.85); c.stroke();
-    ticks(c, -60, 60, 4, 100, 114, 3);
-    label(c, 'FUEL', -20, 16); label(c, 'L        R', 50, 15); label(c, 'E   ½   F', 72, 11);
+    const F = (v, side) => (side < 0 ? map(v, 0, 1, -150, -30) : map(v, 0, 1, 150, 30));
+    for (const side of [-1, 1]) {
+      sideArc(c, side, F(0, side), F(0.12, side), 70, 7, '#d22f22');
+      sideTicks(c, side, side < 0 ? -150 : 30, side < 0 ? -30 : 150, 4, 62, 76, 3);
+      sideNums(c, side, [[F(0, side), 'E'], [F(0.5, side), '½'], [F(1, side), 'F']], 46, 13);
+    }
+    label(c, 'FUEL', -84, 15);
+    label(c, 'L               R', 84, 13);
+    pivotDots(c);
   });
   at('amps', (c) => {
     ticks(c, -60, 60, 6, 100, 114, 3);

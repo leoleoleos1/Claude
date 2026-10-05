@@ -28,9 +28,12 @@ export function liftCoeff(alpha, clMax, a0, cla, stallSoft = 1) {
   const aStall = clMax / cla + 2.5 * DEG;
   const over = Math.abs(ae) - aStall;
   if (over > 0) {
-    const k = smooth(0, 9 * DEG * stallSoft, over);
+    // gentle break: lift settles on a shelf ~20 % below CLmax, then blends to a flat plate
+    const k = smooth(0, 6 * DEG * stallSoft, over);
+    const k2 = smooth(10 * DEG, 30 * DEG, over);
     const plate = 1.15 * Math.sin(2 * ae);
-    cl = cl * (1 - k) + plate * 0.85 * k;
+    const post = Math.sign(ae) * 0.8 * clMax * (1 - k2) + plate * k2;
+    cl = cl * (1 - k) + post * k;
   }
   return cl;
 }
@@ -72,6 +75,8 @@ export class SeaplanePhysics {
     };
     this.events = []; // { type, data } consumed by the plane each frame
     this.onPreStep = null; // called before every fixed step (engine, controls)
+    // handling tuning knobs (power effects and stability aids)
+    this.tune = { torqueRoll: 0.1, pFactor: 0.06, swirl: 0.022, spiral: 7, phugoid: 40 };
     this.gust = new THREE.Vector3();
     this._gustT = 0;
     this._seed = 1.7;
@@ -222,6 +227,8 @@ export class SeaplanePhysics {
     }
     this.cgLocal.copy(c);
     this.mass = m;
+    // rolling moment of the lateral CG offset about the centreline (positive = rolls left)
+    this.lateralMoment = c.x * m * G;
     // inertia: base distribution scaled with mass, plus payload point masses
     const base = DIM.emptyMass / 1450;
     void fuelKg;
@@ -328,6 +335,7 @@ export class SeaplanePhysics {
   }
 
   step(h) {
+    this._stepH = h;
     const env = this.env;
     this._mat();
     const F = this._F.set(0, -this.mass * G, 0);
@@ -343,10 +351,14 @@ export class SeaplanePhysics {
     const inp = this.input;
     const thrustK = this.detached.prop ? 0 : 1;
     this._a.set(0, 0, -inp.thrust * thrustK);
-    this.addForceBody(this.propHub, this._a);
-    T.z += inp.torque * 0.35 * thrustK; // reaction torque rolls left (mild, game value)
+    // thrust line rigged a little above the loaded CG: mild nose-down with power
+    this._b.set(0, this.cgLocal.y + 0.04, this.propHub.z);
+    this.addForceBody(this._b, this._a);
+    T.z += inp.torque * this.tune.torqueRoll * thrustK; // reaction torque rolls left (mild: rigging compensates most of it)
+    // aileron rigging: the mechanic trims out the lateral CG offset (pilot in the left seat)
+    T.z += this.lateralMoment * clamp(this.out.airspeed / 25, 0, 1);
     // P-factor: yaw left proportional to thrust and angle of attack
-    T.y += inp.thrust * 0.06 * clamp(o.aoa, -0.3, 0.4) * thrustK;
+    T.y += inp.thrust * this.tune.pFactor * clamp(o.aoa, -0.3, 0.4) * thrustK;
     // hydro
     let waterNear = true;
     if (env.waterHeight) {
@@ -363,8 +375,10 @@ export class SeaplanePhysics {
     for (const r of this.moor) this._rope(r);
     // push-off from the beach (interaction): backwards force along body +z at the bows
     if (inp.pushOff > 0) {
-      this._a.set(0, 0.25, 1).normalize().multiplyScalar(inp.pushOff * 2600);
-      this.addForceBody(this.contacts[0].local, this._a);
+      this._a.set(0, 0.25, 1).normalize().multiplyScalar(inp.pushOff * 4200);
+      const bow = this.contacts[0].local;
+      this._b.set(0, bow.y, bow.z);
+      this.addForceBody(this._b, this._a);
     }
     // world limit: push-back acceleration + gentle heading torque
     if (env.worldLimit) {
@@ -480,7 +494,7 @@ export class SeaplanePhysics {
       const w = this.toBodyDir(this._d, this._e);
       if (s.propwash > 0) {
         w.z += vslip * s.propwash * (s.tail ? 0.75 : 1);
-        if (s.fin) w.x += -0.06 * vslip; // slipstream swirl on the fin (needs right rudder)
+        if (s.fin) w.x += -this.tune.swirl * vslip; // slipstream swirl on the fin (needs right rudder)
       }
       const wc = w.x * s.c.x + w.y * s.c.y + w.z * s.c.z;
       const wn = w.x * s.n.x + w.y * s.n.y + w.z * s.n.z;
@@ -492,20 +506,20 @@ export class SeaplanePhysics {
       if (s.ctrl === 'aileron') {
         // Beaver-style drooping ailerons follow the flaps at half angle
         const fd = (fl / DEG) * 0.5;
-        a0 += -0.2 * fd * DEG;
-        clMax += 0.045 * fd;
+        a0 += -0.14 * fd * DEG;
+        clMax += 0.025 * fd;
         dCd += 0.0012 * fd;
         alpha += -s.side * inp.aileron * 0.38 * 0.5;
         dCd += Math.abs(inp.aileron) * 0.01;
       }
-      else if (s.ctrl === 'elevator') { alpha -= (inp.elevator * 0.42 + inp.trim * 0.12) * 0.85; dCd += Math.abs(inp.elevator) * 0.012; }
+      else if (s.ctrl === 'elevator') { alpha -= (inp.elevator * 0.36 + inp.trim * 0.12) * 0.85; dCd += Math.abs(inp.elevator) * 0.012; }
       else if (s.ctrl === 'rudder') { alpha += -inp.rudder * 0.45 * 0.5; dCd += Math.abs(inp.rudder) * 0.012; }
       else if (s.ctrl === 'flap') {
         const fd = fl / DEG;
-        a0 += -0.22 * fd * DEG;
-        clMax += 0.05 * fd;
+        a0 += -0.15 * fd * DEG;
+        clMax += 0.027 * fd;
         dCd += 0.0016 * fd;
-        dCm += -0.0035 * fd;
+        dCm += -0.0022 * fd;
       }
       s.alpha = alpha;
       let cl = liftCoeff(alpha, clMax, a0, s.cla, s.fin || s.tail ? 0.6 : 1.4);
@@ -546,14 +560,21 @@ export class SeaplanePhysics {
     }
     // aerodynamic damping (tuning aid for smooth hands-off flight)
     const qd = 0.5 * rho * V;
-    this._T.x += -this.w.x * qd * 14;
+    // pitch damping keeps a floor at low speed (no falling-leaf after a stall break)
+    this._T.x += -this.w.x * Math.max(qd, 0.5 * rho * 28) * 34;
     this._T.y += -this.w.y * qd * 40;
     this._T.z += -this.w.z * qd * 30;
     // gentle spiral stability: banked flight slowly rolls back toward wings level
     if (!o.onWater && V > 12) {
       const m = this._m;
       const rollAng = Math.atan2(-m[3], m[4]);
-      this._T.z += rollAng * qd * V * 1.1 * (1 - o.stall);
+      const qv = Math.max(qd * V, 0.5 * rho * 30 * 30);
+      this._T.z += rollAng * qv * this.tune.spiral * (1 - o.stall);
+      // phugoid damping aid: nose-down moment while the flight path is curving upward
+      const gam = Math.asin(clamp(this.vel.y / Math.max(V, 1), -1, 1));
+      const gdot = this._gamInit ? (gam - this._gamPrev) / this._stepH : 0;
+      this._gamPrev = gam; this._gamInit = true;
+      this._T.x += -clamp(gdot, -1, 1) * qd * V * this.tune.phugoid;
     }
   }
 
@@ -733,6 +754,8 @@ export class SeaplanePhysics {
           if (d > pen) { pen = d; N.copy(this._g); mu = 0.7; }
         }
       }
+      // a crew member rocking / pushing the plane breaks it free
+      if (this.input.pushOff > 0) mu *= 1 - 0.8 * this.input.pushOff;
       // water: non-float points get strong drag when dipped
       if (c.kind !== 'keel' && c.kind !== 'chine' && c.kind !== 'bow' && (o.waterH ?? -1e9) > -1e8) {
         const wh = env.waterHeight(P.x, P.z);

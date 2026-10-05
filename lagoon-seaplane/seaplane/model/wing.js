@@ -200,7 +200,7 @@ export function buildWing(ctx) {
     roundedBox(hard, 0.2, 0.15, 0.16, 0.025, mat(lampC.x, lampC.y, lampC.z, -0.12, 0, 0));
     hard.setColor(0x9c968a).setMat(0.3, 1, KIND.CHROME, 0.3);
     lathe(hard, [[0.07, 0.0], [0.082, 0.004], [0.085, 0.02]], 14, mat(lampC.x, lampC.y + 0.01, lampC.z - 0.07, Math.PI - 0.12, 0, 0));
-    hard.setColor(0xf2ecd8).setMat(0.08, 0, KIND.LAMP, 0);
+    hard.setColor(0xf2ecd8).setMat(0.08, 0, KIND.LAMP, 2 / 8); // lamp 2: landing light
     lathe(hard, [[0, 0.012], [0.07, 0.0]], 14, mat(lampC.x, lampC.y + 0.01, lampC.z - 0.075, Math.PI - 0.12, 0, 0));
     lights.flood = new THREE.Vector3(lampC.x, lampC.y + 0.01, lampC.z - 0.1);
     lights.floodDir = new THREE.Vector3(0, -Math.sin(0.12 + 0.06), -Math.cos(0.12 + 0.06)).normalize();
