@@ -15,9 +15,17 @@
   var ui = new ns.UI({
     config: cfg,
     layout: ns.LAYOUT,
-    restartBtn: document.getElementById('btn-restart'),
-    pauseBtn: document.getElementById('btn-pause'),
-    muteBtn: document.getElementById('btn-mute'),
+    buttons: {
+      restart: document.getElementById('btn-restart'),
+      pause: document.getElementById('btn-pause'),
+      mute: document.getElementById('btn-mute'),
+      customize: document.getElementById('btn-customize'),
+      colorPrev: document.getElementById('btn-color-prev'),
+      colorNext: document.getElementById('btn-color-next'),
+      hatPrev: document.getElementById('btn-hat-prev'),
+      hatNext: document.getElementById('btn-hat-next'),
+      done: document.getElementById('btn-done')
+    },
     status: document.getElementById('status')
   });
   ui.setMuted(audio.muted);
@@ -32,15 +40,19 @@
     surface: canvas,
     frame: frame,
     onGesture: unlockAudio,
-    onAction: function (action, source) { game.handleAction(action, source); }
+    onAction: function (action, source, code) { game.handleAction(action, source, code); }
   });
 
   ui.bind({
     onGesture: unlockAudio,
     onRestart: function () { game.lastInput = 'pointer'; game.restart(); },
     onPause: function () { game.pause(); },
-    onMute: function () { game.toggleMute(); }
+    onMute: function () { game.toggleMute(); },
+    onCustomize: function () { game.openCustomize(); },
+    onCycle: function (kind, dir) { game.cycle(kind, dir); },
+    onDone: function () { game.closeCustomize(); }
   });
+  game.setState(game.state); // sync overlay button visibility with the initial state
 
   // --- Reduced motion ------------------------------------------------------------
   var motionQuery = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;

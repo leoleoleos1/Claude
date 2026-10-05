@@ -9,6 +9,8 @@
  *     │   P / Esc      ▼  │ finished                                 │
  *     │               PAUSED ──input──▶ (3-2-1 countdown)            │
  *     └──────────────────────── restart (after cooldown) ────────────┘
+ *     │
+ *     └──▶ CUSTOMIZE (bird colour / hat picker, only from READY)
  *
  * While PAUSED the world is completely frozen. An explicit input starts a
  * short countdown; the run then continues from exactly the same position and
@@ -21,11 +23,11 @@
     READY: 'ready',
     PLAYING: 'playing',
     PAUSED: 'paused',
+    CUSTOMIZE: 'customize',
     DYING: 'dying',
     GAME_OVER: 'gameover'
   });
 
-  var FEATHERS = ['#ff8c2e', '#ffc06b', '#fff2cf', '#fff7e3'];
   var DUST = ['#ddc386', '#ecd9a6', '#c6a96c'];
 
   function Game(opts) {
@@ -37,6 +39,22 @@
     this.reducedMotion = false;
 
     this.best = this.storage.getBest();
+    this.skins = ns.Skins;
+    var saved = this.storage.getSkin();
+    this.skin = {
+      color: this.skins.indexOf(this.skins.colors, saved.color),
+      hat: this.skins.indexOf(this.skins.hats, saved.hat)
+    };
+    // Never wear something that isn't unlocked (e.g. edited storage).
+    if (!this.isUnlocked(this.skins.colors[this.skin.color])) this.skin.color = 0;
+    if (!this.isUnlocked(this.skins.hats[this.skin.hat])) this.skin.hat = 0;
+    this.browse = { color: this.skin.color, hat: this.skin.hat };
+
+    // Time of day: dayPhase is what is drawn and eases towards
+    // dayBase + score / dayCyclePipes (1.0 = one full day).
+    this.dayPhase = 0;
+    this.dayBase = 0;
+    this.clock = 0; // ever-increasing simulation time for ambient animation
     this.state = State.READY;
     this.stateTime = 0;
     this.lastInput = 'pointer';
@@ -54,19 +72,24 @@
     this.fallSoundAt = -1;
     this.panelShown = false;
     this.restartEnabled = false;
-    this.fx = { flash: 0, shake: 0, scorePop: 0 };
+    this.fx = { flash: 0, shake: 0, scorePop: 0, meteor: null };
+    // A new run starts at midday: roll the sky forward to the next midday.
+    this.dayBase = Math.ceil(this.dayPhase - 1e-9);
   };
 
   Game.prototype.setState = function (s) {
     this.state = s;
     this.stateTime = 0;
     this.ui.setPauseVisible(s === State.PLAYING);
+    this.ui.setReadyControls(s === State.READY);
+    this.ui.setCustomizeControls(s === State.CUSTOMIZE);
     if (s !== State.GAME_OVER) this.ui.setRestartVisible(false);
   };
 
   // --- Input ------------------------------------------------------------------
-  // action: 'flap' | 'confirm' | 'pause' | 'mute';  source: 'key' | 'pointer'
-  Game.prototype.handleAction = function (action, source) {
+  // action: 'flap' | 'confirm' | 'pause' | 'mute' | 'customize' | 'left' |
+  //         'right' | 'down';  source: 'key' | 'pointer';  code: KeyboardEvent.code
+  Game.prototype.handleAction = function (action, source, code) {
     if (source) this.lastInput = source;
 
     if (action === 'mute') { this.toggleMute(); return; }
@@ -74,6 +97,18 @@
     switch (this.state) {
       case State.READY:
         if (action === 'flap' || action === 'confirm') this.start();
+        else if (action === 'customize') this.openCustomize();
+        break;
+
+      case State.CUSTOMIZE:
+        // Arrows browse; Space / Enter / Esc / C close. Taps on the canvas
+        // itself do nothing so the picker can't be closed by accident.
+        if (source !== 'key') break;
+        if (action === 'left') this.cycle('color', -1);
+        else if (action === 'right') this.cycle('color', 1);
+        else if (code === 'ArrowUp') this.cycle('hat', -1);
+        else if (action === 'down') this.cycle('hat', 1);
+        else if (action === 'flap' || action === 'confirm' || action === 'pause' || action === 'customize') this.closeCustomize();
         break;
 
       case State.PLAYING:
@@ -151,6 +186,45 @@
     return true;
   };
 
+  // --- Bird customisation ---------------------------------------------------------
+  Game.prototype.isUnlocked = function (item) { return this.best >= item.unlock; };
+
+  Game.prototype.openCustomize = function () {
+    if (this.state !== State.READY) return;
+    this.browse = { color: this.skin.color, hat: this.skin.hat };
+    this.audio.play('click');
+    this.setState(State.CUSTOMIZE);
+    this.ui.announce('Customize your bird. Colour ' + this.skins.colors[this.skin.color].name +
+      ', hat ' + this.skins.hats[this.skin.hat].name + '.');
+  };
+
+  Game.prototype.closeCustomize = function () {
+    if (this.state !== State.CUSTOMIZE) return;
+    this.browse = { color: this.skin.color, hat: this.skin.hat };
+    this.audio.play('click');
+    this.setState(State.READY);
+    this.ui.announce('');
+  };
+
+  // Browse colours or hats. Unlocked items are equipped and saved right away;
+  // locked ones are only previewed.
+  Game.prototype.cycle = function (kind, dir) {
+    if (this.state !== State.CUSTOMIZE) return;
+    var list = kind === 'color' ? this.skins.colors : this.skins.hats;
+    var i = (this.browse[kind] + dir + list.length) % list.length;
+    this.browse[kind] = i;
+    var item = list[i];
+    var label = (kind === 'color' ? 'Colour ' : 'Hat ') + item.name.toLowerCase();
+    if (this.isUnlocked(item)) {
+      this.skin[kind] = i;
+      this.storage.setSkin({ color: this.skins.colors[this.skin.color].id, hat: this.skins.hats[this.skin.hat].id });
+      this.ui.announce(label + ' equipped.');
+    } else {
+      this.ui.announce(label + ' is locked. Reach a best score of ' + item.unlock + ' to unlock it.');
+    }
+    this.audio.play('click');
+  };
+
   Game.prototype.toggleMute = function () {
     var muted = !this.audio.muted;
     this.audio.setMuted(muted);
@@ -170,6 +244,7 @@
   Game.prototype.update = function (dt) {
     var w = this.world;
     w.snapshot();
+    this.updateDayPhase(dt);
     if (this.state === State.PAUSED) {
       // The world stays frozen; only the resume countdown advances.
       if (this.resumeCountdown > 0) {
@@ -185,13 +260,16 @@
     }
 
     this.stateTime += dt;
+    this.clock += dt;
     var fx = this.fx;
+    this.updateMeteor(dt);
     fx.flash = Math.max(0, fx.flash - dt);
     fx.shake = Math.max(0, fx.shake - dt);
     fx.scorePop = Math.max(0, fx.scorePop - dt);
 
     switch (this.state) {
       case State.READY:
+      case State.CUSTOMIZE:
         w.updateReady(dt);
         break;
 
@@ -234,6 +312,45 @@
     w.updateParticles(dt);
   };
 
+  // Ease the sky towards the time of day for the current score. Far behind
+  // (e.g. rolling forward to midday after a restart) it catches up faster.
+  Game.prototype.updateDayPhase = function (dt) {
+    if (this.state === State.PAUSED) return;
+    var cfg = this.cfg;
+    var target = this.dayBase + this.world.score / cfg.dayCyclePipes;
+    var diff = target - this.dayPhase;
+    if (diff > 0) {
+      var base = 1 / cfg.dayCyclePipes / cfg.dayTransitionTime;
+      this.dayPhase = Math.min(target, this.dayPhase + base * Math.max(1, diff * cfg.dayCyclePipes) * dt);
+    }
+    // Keep the number small: midday again → back to 0.
+    if (this.dayPhase === target && this.world.score === 0 && this.dayBase > 0) {
+      this.dayPhase = 0;
+      this.dayBase = 0;
+    }
+  };
+
+  // Occasional shooting star at night (purely decorative).
+  Game.prototype.updateMeteor = function (dt) {
+    var m = this.fx.meteor;
+    if (m) {
+      m.life -= dt;
+      m.x += m.vx * dt;
+      m.y += m.vy * dt;
+      if (m.life <= 0) this.fx.meteor = null;
+      return;
+    }
+    if (this.reducedMotion) return;
+    var stars = ns.DayCycle.sample(this.dayPhase).stars;
+    if (stars > 0.8 && Math.random() < dt / 5) {
+      this.fx.meteor = { x: 120 + Math.random() * 220, y: 20 + Math.random() * 140, vx: -300, vy: 140, life: 0.6, maxLife: 0.6 };
+    }
+  };
+
+  Game.prototype.currentSkin = function () {
+    return { color: this.skins.colors[this.skin.color], hat: this.skins.hats[this.skin.hat] };
+  };
+
   Game.prototype.onScore = function () {
     var score = this.world.score;
     this.audio.play('score');
@@ -252,7 +369,8 @@
     this.audio.play('hit');
     if (!this.reducedMotion) {
       this.fx.shake = cfg.shakeTime;
-      w.emit(w.bird.x, w.bird.y, 10, FEATHERS, 160, 120);
+      var pal = this.currentSkin().color.palette;
+      w.emit(w.bird.x, w.bird.y, 10, [pal.o, pal.h, pal.c, pal.m], 160, 120);
     }
     this.fx.flash = cfg.flashTime;
     this.setState(State.DYING);

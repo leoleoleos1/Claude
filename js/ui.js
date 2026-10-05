@@ -1,8 +1,8 @@
 /*
- * DOM overlay controls: mute, pause and restart buttons plus a screen-reader
- * live region. The restart button is drawn on the canvas; the real <button>
- * sits exactly on top of it (transparent) so it is clickable, focusable and
- * announced by assistive technology.
+ * DOM overlay controls: mute and pause buttons, plus transparent buttons that
+ * sit exactly over buttons drawn on the canvas (restart, customise, the
+ * colour / hat arrows and "done") so they are clickable, focusable and
+ * announced by assistive technology. Also owns the screen-reader live region.
  */
 (function (ns) {
   'use strict';
@@ -10,18 +10,23 @@
   function pct(v, total) { return (v / total * 100) + '%'; }
 
   function UI(opts) {
-    this.restartBtn = opts.restartBtn;
-    this.pauseBtn = opts.pauseBtn;
-    this.muteBtn = opts.muteBtn;
+    var cfg = opts.config, L = opts.layout;
+    this.btn = opts.buttons;   // { restart, pause, mute, customize, colorPrev, colorNext, hatPrev, hatNext, done }
     this.status = opts.status;
-    this.restartPressed = false;
+    this.pressed = null;       // id of the canvas-drawn button currently held down
 
-    var cfg = opts.config, r = opts.layout.restartButton;
-    var s = this.restartBtn.style;
-    s.left = pct(r.x, cfg.width);
-    s.top = pct(r.y, cfg.height);
-    s.width = pct(r.w, cfg.width);
-    s.height = pct(r.h, cfg.height);
+    var place = function (btn, r) {
+      btn.style.left = pct(r.x, cfg.width);
+      btn.style.top = pct(r.y, cfg.height);
+      btn.style.width = pct(r.w, cfg.width);
+      btn.style.height = pct(r.h, cfg.height);
+    };
+    place(this.btn.restart, L.restartButton);
+    place(this.btn.customize, L.customizeButton);
+    ['colorPrev', 'colorNext', 'hatPrev', 'hatNext', 'done'].forEach(function (k) {
+      place(this.btn[k], L.custom[k]);
+    }, this);
+    this.customizeButtons = [this.btn.colorPrev, this.btn.colorNext, this.btn.hatPrev, this.btn.hatNext, this.btn.done];
   }
 
   // Remove focus after a mouse/touch click so a later Space press flaps
@@ -32,44 +37,48 @@
 
   UI.prototype.bind = function (h) {
     var self = this;
-    [this.restartBtn, this.pauseBtn, this.muteBtn].forEach(function (btn) {
-      btn.addEventListener('pointerdown', function () { h.onGesture(); });
-    });
-
-    this.restartBtn.addEventListener('pointerdown', function () { self.restartPressed = true; });
-    ['pointerup', 'pointerleave', 'pointercancel'].forEach(function (type) {
-      self.restartBtn.addEventListener(type, function () { self.restartPressed = false; });
-    });
-
-    this.restartBtn.addEventListener('click', function (e) {
-      blurIfPointer(self.restartBtn, e);
-      h.onGesture();
-      h.onRestart();
-    });
-    this.pauseBtn.addEventListener('click', function (e) {
-      blurIfPointer(self.pauseBtn, e);
-      h.onPause();
-    });
-    this.muteBtn.addEventListener('click', function (e) {
-      blurIfPointer(self.muteBtn, e);
-      h.onGesture();
-      h.onMute();
+    var handlers = {
+      restart: h.onRestart,
+      pause: h.onPause,
+      mute: h.onMute,
+      customize: h.onCustomize,
+      colorPrev: function () { h.onCycle('color', -1); },
+      colorNext: function () { h.onCycle('color', 1); },
+      hatPrev: function () { h.onCycle('hat', -1); },
+      hatNext: function () { h.onCycle('hat', 1); },
+      done: h.onDone
+    };
+    Object.keys(handlers).forEach(function (id) {
+      var btn = self.btn[id];
+      btn.addEventListener('pointerdown', function () { h.onGesture(); self.pressed = id; });
+      ['pointerup', 'pointerleave', 'pointercancel'].forEach(function (type) {
+        btn.addEventListener(type, function () { if (self.pressed === id) self.pressed = null; });
+      });
+      btn.addEventListener('click', function (e) {
+        blurIfPointer(btn, e);
+        h.onGesture();
+        handlers[id]();
+      });
     });
   };
 
-  UI.prototype.setRestartVisible = function (v) {
-    this.restartBtn.hidden = !v;
-    if (!v) this.restartPressed = false;
-  };
+  UI.prototype.isPressed = function (id) { return this.pressed === id; };
 
-  UI.prototype.setPauseVisible = function (v) {
-    if (!v && document.activeElement === this.pauseBtn) this.pauseBtn.blur();
-    this.pauseBtn.hidden = !v;
+  function show(btn, v) {
+    if (!v && document.activeElement === btn) btn.blur();
+    btn.hidden = !v;
+  }
+
+  UI.prototype.setRestartVisible = function (v) { show(this.btn.restart, v); };
+  UI.prototype.setPauseVisible = function (v) { show(this.btn.pause, v); };
+  UI.prototype.setReadyControls = function (v) { show(this.btn.customize, v); };
+  UI.prototype.setCustomizeControls = function (v) {
+    this.customizeButtons.forEach(function (b) { show(b, v); });
   };
 
   UI.prototype.setMuted = function (muted) {
-    this.muteBtn.setAttribute('aria-pressed', muted ? 'true' : 'false');
-    this.muteBtn.classList.toggle('is-muted', muted);
+    this.btn.mute.setAttribute('aria-pressed', muted ? 'true' : 'false');
+    this.btn.mute.classList.toggle('is-muted', muted);
   };
 
   UI.prototype.announce = function (text) {

@@ -8,6 +8,7 @@
 
   var KEY_BEST = 'flapling.bestScore';
   var KEY_MUTED = 'flapling.muted';
+  var KEY_SKIN = 'flapling.skin';
   var memory = {};
 
   var store = null;
@@ -42,6 +43,15 @@
     },
     setBest: function (n) { write(KEY_BEST, Math.max(0, Math.floor(n))); },
     getMuted: function () { return read(KEY_MUTED) === '1'; },
-    setMuted: function (muted) { write(KEY_MUTED, muted ? '1' : '0'); }
+    setMuted: function (muted) { write(KEY_MUTED, muted ? '1' : '0'); },
+    // Equipped bird skin as { color: id, hat: id }.
+    getSkin: function () {
+      try {
+        var v = JSON.parse(read(KEY_SKIN));
+        if (v && typeof v.color === 'string' && typeof v.hat === 'string') return v;
+      } catch (e) { /* corrupt or missing */ }
+      return { color: 'sunny', hat: 'none' };
+    },
+    setSkin: function (skin) { write(KEY_SKIN, JSON.stringify({ color: skin.color, hat: skin.hat })); }
   };
 })(globalThis.Flapling = globalThis.Flapling || {});

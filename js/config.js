@@ -55,6 +55,10 @@
     restartCooldown: 0.45,  // after the panel arrives, ignore restart input for this long (s)
     resumeCountdown: 1.5,   // 3-2-1 countdown after resuming from pause (s); 0 resumes instantly
 
+    // --- Time of day ----------------------------------------------------------
+    dayCyclePipes: 16,      // pipes for one full day → sunset → night → dawn → day cycle
+    dayTransitionTime: 1.2, // how long the sky takes to shift after each pipe (s)
+
     // --- Effects -----------------------------------------------------------
     shakeTime: 0.28,
     shakeAmplitude: 5,
@@ -77,11 +81,25 @@
   var LAYOUT = {
     scoreY: 36,
     titleY: 104,
-    readyHintY: 392,
-    readyBestY: 452,
+    readyHintY: 384,
+    readyBestY: 434,
+    customizeButton: { x: 92, y: 468, w: 176, h: 44 },
     gameOverTitleY: 132,
     panel: { x: 30, y: 196, w: 300, h: 168 },
-    restartButton: { x: 95, y: 392, w: 170, h: 54 }
+    restartButton: { x: 95, y: 392, w: 170, h: 54 },
+    // Bird customisation screen.
+    custom: {
+      titleY: 56,
+      panel: { x: 30, y: 112, w: 300, h: 320 },
+      previewY: 192,
+      colorY: 252,
+      hatY: 342,
+      colorPrev: { x: 42, y: 270, w: 44, h: 42 },
+      colorNext: { x: 274, y: 270, w: 44, h: 42 },
+      hatPrev: { x: 42, y: 360, w: 44, h: 42 },
+      hatNext: { x: 274, y: 360, w: 44, h: 42 },
+      done: { x: 95, y: 452, w: 170, h: 54 }
+    }
   };
 
   ns.CONFIG = CONFIG;

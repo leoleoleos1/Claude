@@ -15,7 +15,7 @@
   <main class="stage">
     <div id="game" class="game">
       <canvas id="screen" class="screen" tabindex="0"
-              aria-label="Flapling game. Press Space, the Up Arrow, click or tap to flap. P pauses, M mutes."></canvas>
+              aria-label="Flapling game. Press Space, the Up Arrow, click or tap to flap. P pauses, M mutes, C customizes the bird."></canvas>
 
       <button id="btn-pause" class="hud-btn hud-btn--left" type="button" aria-label="Pause" hidden>
         <svg viewBox="0 0 18 18" aria-hidden="true" focusable="false">
@@ -47,8 +47,14 @@
         </svg>
       </button>
 
-      <!-- Transparent, accessible hit area over the restart button drawn on the canvas. -->
-      <button id="btn-restart" class="restart-hit" type="button" hidden>Restart</button>
+      <!-- Transparent, accessible hit areas over buttons drawn on the canvas. -->
+      <button id="btn-restart" class="hit" type="button" hidden>Restart</button>
+      <button id="btn-customize" class="hit" type="button" hidden>Customize bird</button>
+      <button id="btn-color-prev" class="hit" type="button" hidden>Previous colour</button>
+      <button id="btn-color-next" class="hit" type="button" hidden>Next colour</button>
+      <button id="btn-hat-prev" class="hit" type="button" hidden>Previous hat</button>
+      <button id="btn-hat-next" class="hit" type="button" hidden>Next hat</button>
+      <button id="btn-done" class="hit" type="button" hidden>Done</button>
 
       <p id="status" class="visually-hidden" role="status" aria-live="polite"></p>
     </div>
@@ -61,6 +67,8 @@
   <script src="js/storage.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/font.js"></script>
+  <script src="js/daycycle.js"></script>
+  <script src="js/skins.js"></script>
   <script src="js/sprites.js"></script>
   <script src="js/world.js"></script>
   <script src="js/game.js"></script>

@@ -38,6 +38,7 @@ node --test
 | Resume  | `Space`, `↑`, `Enter`, `P` | Tap the game              |
 | Restart | `Space`, `↑` or `Enter` on the results screen | **Restart** button |
 | Mute    | `M`                     | Speaker button (top right)  |
+| Customize bird | `C` on the title screen, then `←`/`→` colour, `↑`/`↓` hat, `Esc`/`Enter` done | **Customize** button, arrow buttons, **Done** |
 
 - The first input on the title screen starts the run and flaps.
 - Holding a key flaps once; release it to flap again.
@@ -46,8 +47,34 @@ node --test
   exactly where it was.
 - After a crash there is a short cooldown before restarting, so the input that
   caused the crash can't skip the results screen.
-- The best score and the mute setting are stored in `localStorage` (the game
+- The best score, the mute setting and the chosen bird are stored in `localStorage` (the game
   still works if storage is blocked; the values then last for the session).
+
+## Time of day
+
+Every run starts at midday. Each pipe you pass moves the clock forward a
+little (`dayCyclePipes` = 16 pipes for a full cycle), and the sky eases to
+the new colours over `dayTransitionTime` seconds: afternoon → golden hour →
+sunset → dusk → a starry night with the moon, fireflies and the odd shooting
+star → dawn → morning → midday again. The sun and moon move across the sky and
+set behind the hills; the scenery, pipes and ground are tinted to match while
+the bird stays bright and easy to see. After a run the sky rolls forward to
+midday on the title screen.
+
+## Bird customisation
+
+Press **Customize** on the title screen (or `C`) to pick a colour and a hat.
+Your choice is equipped and saved immediately. Some items unlock with your
+best score:
+
+| Colours | Hats |
+|---------|------|
+| Sunny, Sky, Berry, Mint, Plum — free | None, Cap, Bow — free |
+| Snow — best 10 | Shades — best 5 |
+| Gold — best 25 | Party hat — best 10, Crown — best 20 |
+
+Locked items can be previewed but not worn. The catalogue (names, palettes,
+pixel art, unlock scores) is in [`js/skins.js`](js/skins.js).
 
 ## Tuning the difficulty
 
@@ -70,6 +97,7 @@ Distances are logical pixels on the fixed 360 × 640 play area; times are second
 | `birdHitboxRatio` | `0.46` | Collision circle radius as a fraction of the bird height (lower = more forgiving). |
 | `groundHeight` | `96` | Height of the ground strip (px). |
 | `restartCooldown`, `resumeCountdown` | `0.45`, `1.5` | Timing of the results screen and the resume countdown (s). |
+| `dayCyclePipes`, `dayTransitionTime` | `16`, `1.2` | Pipes per full day/night cycle; seconds per sky transition. |
 
 Difficulty is intentionally constant throughout a run.
 
@@ -84,14 +112,16 @@ js/util.js          Math helpers, seeded RNG, circle-vs-rectangle collision
 js/storage.js       Safe localStorage wrapper (best score, mute)
 js/audio.js         Web Audio sound effects (flap, score, hit, fall, game over)
 js/font.js          Original 5×7 bitmap font with outline rendering
+js/daycycle.js      Time-of-day keyframes: sky colours, scenery tint, stars, sun/moon paths
+js/skins.js         Bird colours and hats (pixel art + unlock scores)
 js/sprites.js       Procedural pixel art: bird, pipes, ground, parallax layers, medals
 js/world.js         Simulation: physics, pipes, collisions, scoring, particles
-js/game.js          State machine: ready → playing ⇄ paused → dying → game over
+js/game.js          State machine: ready (⇄ customize) → playing ⇄ paused → dying → game over
 js/renderer.js      Draws the world, HUD and menus
 js/input.js         Keyboard + Pointer Events → game actions
 js/ui.js            DOM buttons (mute, pause, restart) and screen-reader announcements
 js/main.js          Boot, responsive/high-DPI sizing, fixed-timestep loop, visibility
-tests/              Node tests for the simulation
+tests/              Node tests for the simulation, day cycle and state machine
 ```
 
 ### Technical notes

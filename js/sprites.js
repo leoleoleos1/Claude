@@ -51,19 +51,13 @@
   // ---------------------------------------------------------------------------
   // Bird: 17 × 12 art px, facing right. Three wing frames.
   // ---------------------------------------------------------------------------
-  var BIRD_PALETTE = {
+  // Fixed parts of the bird palette; body colours come from the chosen skin.
+  var BIRD_BASE = {
     k: '#2b1d14', // outline
-    o: '#ff8c2e', // body
-    h: '#ffc06b', // body highlight
-    d: '#e0621c', // body shade
-    c: '#ffd28f', // belly
-    w: '#ffffff', // eye white
-    b: '#ffd93b', // beak
-    r: '#f2a516', // beak shade
-    m: '#ffffff', // wing
-    n: '#ead7b6'  // wing shade
+    w: '#ffffff'  // eye white
   };
 
+  // Letters: o body, h highlight, d shade, c belly, b/r beak, m/n wing.
   var BIRD_BODY = [
     '.....kkkkkk......',
     '...kkhhhhhhkkkk..',
@@ -85,12 +79,23 @@
     { oy: 6, rows: ['.kkkk..', 'kmmmmk.', 'kmmnk..', 'knk....', '.k.....'] }  // down
   ];
 
-  function buildBird() {
+  /*
+   * Bird frames for a colour skin and optional hat. Canvases are 17 px wide
+   * and 12 + HEAD_ROOM px tall: the body sits HEAD_ROOM px down so hats can
+   * stick out above the head.
+   */
+  function buildBird(color, hat) {
+    var head = ns.Skins.HEAD_ROOM;
+    var pal = {};
+    var key;
+    for (key in BIRD_BASE) pal[key] = BIRD_BASE[key];
+    for (key in color.palette) pal[key] = color.palette[key];
     var frames = [];
     for (var i = 0; i < WING_FRAMES.length; i++) {
-      var c = makeCanvas(17, 12);
-      paintMap(c.ctx, BIRD_BODY, BIRD_PALETTE);
-      paintMap(c.ctx, WING_FRAMES[i].rows, BIRD_PALETTE, 0, WING_FRAMES[i].oy);
+      var c = makeCanvas(17, 12 + head);
+      paintMap(c.ctx, BIRD_BODY, pal, 0, head);
+      paintMap(c.ctx, WING_FRAMES[i].rows, pal, 0, head + WING_FRAMES[i].oy);
+      if (hat && hat.art) paintMap(c.ctx, hat.art.rows, hat.art.palette, hat.art.ox, head + hat.art.oy);
       frames.push(c.canvas);
     }
     return frames;
@@ -208,27 +213,6 @@
   // ---------------------------------------------------------------------------
   // Background layers (seamlessly tiling horizontally)
   // ---------------------------------------------------------------------------
-  function buildSky(cfg) {
-    var a = cfg.artScale;
-    var w = Math.round(cfg.width / a), h = Math.round(cfg.height / a);
-    var c = makeCanvas(w, h);
-    var bands = ['#3d98e0', '#469fe3', '#50a7e6', '#5bb0ea', '#67b9ed', '#74c2f0',
-                 '#82cbf2', '#91d3f5', '#a0dbf7', '#afe2f8', '#bde8fa'];
-    var bandH = Math.ceil((h - cfg.groundHeight / a) / bands.length);
-    for (var i = 0; i < bands.length; i++) {
-      c.ctx.fillStyle = bands[i];
-      c.ctx.fillRect(0, i * bandH, w, bandH);
-      // One row of checkerboard dithering softens each band edge.
-      if (i + 1 < bands.length) {
-        c.ctx.fillStyle = bands[i + 1];
-        for (var x = 0; x < w; x += 2) c.ctx.fillRect(x, (i + 1) * bandH - 1, 1, 1);
-      }
-    }
-    c.ctx.fillStyle = bands[bands.length - 1];
-    c.ctx.fillRect(0, bands.length * bandH, w, h);
-    return c.canvas;
-  }
-
   function cloud(ctx, cx, cy, s, rng, fill, shade) {
     var puffs = [[0, 0, 7], [-8, 2, 5], [8, 2, 5], [-4, -3, 5], [5, -2, 6], [-13, 4, 3], [13, 4, 3]];
     var i, p;
@@ -401,10 +385,8 @@
 
   function build(cfg) {
     return {
-      bird: buildBird(),
       pipe: buildPipes(cfg),
       ground: buildGround(cfg),
-      sky: buildSky(cfg),
       layers: [
         // factor = scroll speed relative to the pipes (parallax depth).
         { canvas: buildFarClouds(cfg), factor: 0.06 },
@@ -417,5 +399,5 @@
     };
   }
 
-  ns.Sprites = { build: build };
+  ns.Sprites = { build: build, buildBird: buildBird, makeCanvas: makeCanvas, disc: disc };
 })(globalThis.Flapling = globalThis.Flapling || {});

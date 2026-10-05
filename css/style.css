@@ -97,7 +97,7 @@ body {
 .hud-btn.is-muted .icon-muted { display: inline; }
 .hud-btn.is-muted .icon-sound { display: none; }
 
-.restart-hit {
+.hit {
   position: absolute;
   padding: 0;
   margin: 0;
@@ -110,7 +110,7 @@ body {
 }
 
 .hud-btn:focus-visible,
-.restart-hit:focus-visible {
+.hit:focus-visible {
   outline: 3px solid #ffffff;
   outline-offset: 2px;
   border-radius: 2px;

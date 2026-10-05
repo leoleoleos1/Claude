@@ -1,6 +1,6 @@
 /*
  * Input handling. Translates raw keyboard and pointer events into abstract
- * actions ('flap', 'confirm', 'pause', 'mute') for the game.
+ * actions ('flap', 'confirm', 'pause', 'mute', 'customize', arrows) for the game.
  *
  * - Only Pointer Events are used for mouse/touch/pen, and pointerdown's
  *   default is prevented, so a tap can never fire both a touch and a
@@ -19,7 +19,11 @@
     NumpadEnter: 'confirm',
     KeyP: 'pause',
     Escape: 'pause',
-    KeyM: 'mute'
+    KeyM: 'mute',
+    KeyC: 'customize',
+    ArrowLeft: 'left',
+    ArrowRight: 'right',
+    ArrowDown: 'down'
   };
   // Keys whose default browser behaviour (scrolling) must be suppressed.
   var BLOCK_DEFAULT = { Space: 1, ArrowUp: 1, ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1, PageUp: 1, PageDown: 1, Home: 1, End: 1 };
@@ -47,7 +51,7 @@
       if (e.repeat || held[code]) return; // holding a key never repeats a flap
       held[code] = true;
       onGesture();
-      onAction(action, 'key');
+      onAction(action, 'key', code);
     });
 
     window.addEventListener('keyup', function (e) {
@@ -65,7 +69,7 @@
         try { surface.focus({ preventScroll: true }); } catch (err) { surface.focus(); }
       }
       onGesture();
-      onAction('flap', 'pointer');
+      onAction('flap', 'pointer', null);
     });
 
     // Block scrolling, pinch-zoom, double-tap zoom, long-press menus and
