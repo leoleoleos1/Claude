@@ -193,15 +193,20 @@ export function buildWing(ctx) {
     // floodlight (landing light) under the right wing, near the strut fitting
     const fx = 2.18;
     const under = wingPoint(fx, sForC(0.2, -1), new THREE.Vector3());
+    // square work-lamp housing on a U bracket, chrome bezel, ribbed reflector lens
     hard.setColor(0x2a2a26).setMat(0.5, 0.6, KIND.PAINTED, 0.5);
-    box(hard, 0.03, 0.12, 0.03, mat(fx, under.y - 0.06, under.z + 0.02));
-    const lampC = new THREE.Vector3(fx, under.y - 0.17, under.z - 0.02);
-    roundedBox(hard, 0.2, 0.15, 0.16, 0.025, mat(lampC.x, lampC.y, lampC.z, -0.12, 0, 0));
-    hard.setColor(0x9c968a).setMat(0.3, 1, KIND.CHROME, 0.3);
-    lathe(hard, [[0.07, 0.0], [0.082, 0.004], [0.085, 0.02]], 14, mat(lampC.x, lampC.y + 0.01, lampC.z - 0.07, Math.PI - 0.12, 0, 0));
+    const lampC = new THREE.Vector3(fx, under.y - 0.2, under.z - 0.02);
+    for (const sx of [-1, 1]) {
+      box(hard, 0.02, 0.17, 0.03, mat(fx + sx * 0.145, under.y - 0.1, under.z - 0.01));
+      box(hard, 0.012, 0.04, 0.04, mat(fx + sx * 0.137, lampC.y, lampC.z, -0.12, 0, 0));
+    }
+    box(hard, 0.31, 0.02, 0.05, mat(fx, under.y - 0.012, under.z - 0.01));
+    roundedBox(hard, 0.26, 0.21, 0.17, 0.03, mat(lampC.x, lampC.y, lampC.z, -0.12, 0, 0));
+    hard.setColor(0xa8a397).setMat(0.25, 1, KIND.CHROME, 0.35);
+    roundedBox(hard, 0.27, 0.22, 0.03, 0.02, mat(lampC.x, lampC.y + 0.011, lampC.z - 0.085, -0.12, 0, 0));
     hard.setColor(0xf2ecd8).setMat(0.08, 0, KIND.LAMP, 2 / 8); // lamp 2: landing light
-    lathe(hard, [[0, 0.012], [0.07, 0.0]], 14, mat(lampC.x, lampC.y + 0.01, lampC.z - 0.075, Math.PI - 0.12, 0, 0));
-    lights.flood = new THREE.Vector3(lampC.x, lampC.y + 0.01, lampC.z - 0.1);
+    lathe(hard, [[0, 0.014], [0.05, 0.01], [0.092, 0.0]], 20, mat(lampC.x, lampC.y + 0.012, lampC.z - 0.1, Math.PI - 0.12, 0, 0));
+    lights.flood = new THREE.Vector3(lampC.x, lampC.y + 0.012, lampC.z - 0.12);
     lights.floodDir = new THREE.Vector3(0, -Math.sin(0.12 + 0.06), -Math.cos(0.12 + 0.06)).normalize();
     // pitot tube under the left wing
     const pp = wingPoint(-4.7, sForC(0.22, -1), new THREE.Vector3());

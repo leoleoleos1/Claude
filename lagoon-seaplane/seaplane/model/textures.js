@@ -496,7 +496,7 @@ void main() {
     float noStrut = part == P_WSTRUT ? 0.0 : 1.0;
     // sun-bleached tops, cavity darkening
     float lum = dot(col, vec3(0.3, 0.59, 0.11));
-    col = mix(col, mix(vec3(lum), col, 0.72) * 1.08 + 0.006, up * 0.45);
+    col = mix(col, mix(vec3(lum), col, 0.8) * 1.04 + 0.004, up * 0.35);
     col = mix(col, vec3(0.05, 0.042, 0.03), (1.0 - ao) * 0.55);
     // big soft grime smudges and general dirt, heavier low on the airframe
     float smudge = smoothstep(0.52, 0.78, sp_fbm3(S * 1.5 + 41.0, 4) + lowK * 0.12 + region * 0.12);
@@ -572,7 +572,7 @@ void main() {
     float mud = 0.0;
     if (part == P_FLOAT) {
       float mh = h + (sp_fbm3(S * 3.0, 3) - 0.5) * 0.22;
-      mud = 1.0 - smoothstep(0.12, 0.4, mh);
+      mud = 1.0 - smoothstep(0.2, 0.5, mh); // dried silt up to the chines
       float spl = sp_fbm3(S * vec3(11.0, 17.0, 11.0), 3);
       mud = max(mud, step(0.62 - (1.0 - smoothstep(0.05, 0.75, h)) * 0.22, spl) * (1.0 - smoothstep(0.3, 0.85, h)));
       float scrapeN = sp_fbm3(S * vec3(3.0, 9.0, 3.0) + 13.0, 3);

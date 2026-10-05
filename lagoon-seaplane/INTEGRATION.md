@@ -146,7 +146,7 @@ Performance note: on the water the physics spends most of its time inside
 | `attachInput(dom)` / `detachInput()` | key / mouse listeners **on the given element only** (focusable canvas). |
 | `setControls(obj)` | programmatic input: `pitch, roll, yaw` (-1..1, `null` = release to keys), `throttle` (0..1 or `null`), `trim` (-1..1), `flaps` (notch index 0..3), `starter` (bool, hold to crank), `mouseYoke {x, y}`, `waterRudder` (bool, down), `lights {nav, landing}`, `mixture`, `propLever`, `fuelSelector` ('both'|'left'|'right'|'off'). |
 | `command(name)` | `'flapsUp'`, `'flapsDown'`, `'toggleWaterRudder'`, `'cycleLights'`, `'toggleCamera'`, `'engineStop'` (plus the key-edge commands `engineDown/engineUp/engineTap/interactDown/interactUp`). |
-| `toggleDoor(name, open?)`, `setDoor(name, open)`, `doorOpen(name)` | `'doorL'`, `'doorR'`, `'cargo'` (cargo door starts open, as in the reference). |
+| `toggleDoor(name, open?)`, `setDoor(name, open)`, `doorOpen(name)` | `'doorL'`, `'doorR'`, `'cargo'` (the cargo door is top-hinged, swings up under the wing and starts open, as in the reference). |
 | `placeOnWater(x, z, yaw)` | floats at the correct waterline (pre-settled). Removes chocks and ropes. |
 | `placeOnBeach(x, z, yaw)` | rests the floats on four timber chocks (visible props in `worldRoot`, physical boxes), water rudders up. |
 | `placeInAir(x, y, z, yaw, speed = 38)` | flying, engine running at ~68 % power, trimmed. |
