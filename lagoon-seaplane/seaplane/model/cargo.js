@@ -3,7 +3,7 @@
 // lashings. Soft items carry spring-wobble attributes (pivot, group, weight).
 import * as THREE from 'three';
 import { DIM, fuselageSection } from './dims.js';
-import { grid, tube, lathe, box, roundedBox, mat, matAlong, rng, v3, KIND } from './geom.js';
+import { grid, tube, lathe, box, roundedBox, mat, rng, v3, KIND } from './geom.js';
 import { wingPoint, sForC } from './wing.js';
 
 // Wobble groups (shared with the runtime springs in the materials module).

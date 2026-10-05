@@ -69,8 +69,6 @@ export function buildPowerplant(ctx) {
     hard.setColor(0x2f3032).setMat(0.55, 0.55, KIND.METAL, 0.7);
     lathe(hard, headProfile, seg, m);
     // rocker boxes (front & rear) on the head
-    const side = v3(Math.cos(th), -Math.sin(th), 0); // tangent
-    void side;
     hard.setColor(0x4d4f50).setMat(0.45, 0.7, KIND.METAL, 0.6);
     if (lod === 0) for (const dz of [-0.06, 0.06]) {
       const c = E(dir.x * 0.5, dir.y * 0.5, dz);

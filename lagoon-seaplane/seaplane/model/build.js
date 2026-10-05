@@ -1,7 +1,6 @@
 // Model assembly: runs the part builders for one LOD, packs the paint atlas,
 // converts to the plane-local frame (origin at CG), bakes vertex AO and turns
 // the builders into BufferGeometries.
-import * as THREE from 'three';
 import { CG_MODEL } from './dims.js';
 import { GeoBuilder, packAtlas, applyAtlas, computeVoxelAO, rng } from './geom.js';
 import { buildFuselage } from './fuselage.js';
@@ -87,16 +86,6 @@ export function layoutAtlas(ctx, atlasPx, reuse) {
   }
   const paints = [ctx.paint, ctx.bakeOnly, ...ctx.extra.filter((b) => b.layoutName === 'paint')];
   for (const b of paints) applyAtlas(b, ctx.islands, rects);
-  // generic islands: wrap uvs inside the island rect
-  for (const b of paints) {
-    const uv = b.attrs.uv;
-    for (let v = 0; v < b.island.length; v++) {
-      const id = b.island[v];
-      if (id < 0 || !ctx.islands[id].generic) continue;
-      // applyAtlas clamped; replace with a wrapped coordinate for variety
-    }
-    void uv;
-  }
   return reuse;
 }
 

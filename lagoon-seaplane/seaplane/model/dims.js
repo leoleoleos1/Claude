@@ -106,36 +106,6 @@ export function fuselageSection(z, out = {}) {
   return out;
 }
 
-// Point on the right half of a rounded-rect section, s in [0,1] from bottom
-// centre (0) to top centre (1), by normalized arc length. Returns [x, y].
-export function sectionPoint(sec, s, out) {
-  const { hw, yb, yt, rb, rt } = sec;
-  const bottom = Math.max(hw - rb, 0), arcB = (Math.PI / 2) * rb;
-  const wall = Math.max(yt - rt - (yb + rb), 0), arcT = (Math.PI / 2) * rt, top = Math.max(hw - rt, 0);
-  const L = bottom + arcB + wall + arcT + top;
-  let d = s * L;
-  if (d <= bottom) { out[0] = d; out[1] = yb; return L; }
-  d -= bottom;
-  if (d <= arcB) { const a = d / Math.max(rb, 1e-9); out[0] = hw - rb + Math.sin(a) * rb; out[1] = yb + rb - Math.cos(a) * rb; return L; }
-  d -= arcB;
-  if (d <= wall) { out[0] = hw; out[1] = yb + rb + d; return L; }
-  d -= wall;
-  if (d <= arcT) { const a = d / Math.max(rt, 1e-9); out[0] = hw - rt + Math.cos(a) * rt; out[1] = yt - rt + Math.sin(a) * rt; return L; }
-  d -= arcT;
-  out[0] = Math.max(top - d, 0); out[1] = yt;
-  return L;
-}
-
-// Normalized arc-length parameter of the right-half section for a wall height y
-// (valid for the constant cabin section).
-export function sectionParamForY(sec, y) {
-  const { hw, yb, yt, rb, rt } = sec;
-  const bottom = Math.max(hw - rb, 0), arcB = (Math.PI / 2) * rb;
-  const wall = Math.max(yt - rt - (yb + rb), 0), arcT = (Math.PI / 2) * rt, top = Math.max(hw - rt, 0);
-  const L = bottom + arcB + wall + arcT + top;
-  return (bottom + arcB + THREE.MathUtils.clamp(y - (yb + rb), 0, wall)) / L;
-}
-
 // ---------------------------------------------------------------------------
 // Float hull: profile along the float (local z from the float's own bow), keel,
 // chine, deck heights and half width. All in model y.
@@ -251,5 +221,4 @@ export function wingSurfacePoint(x, c, side, out = new THREE.Vector3()) {
   return out.set(x, yc, zc);
 }
 
-export function toLocal(v, out = new THREE.Vector3()) { return out.copy(v).sub(CG_MODEL); }
 export function L(x, y, z) { return new THREE.Vector3(x - CG_MODEL.x, y - CG_MODEL.y, z - CG_MODEL.z); }

@@ -29,8 +29,6 @@ function breakable(builder, mat, opts) {
   return { mesh: m, rest: part.rest, runs: part.runs, tail: arr.slice(part.rest) };
 }
 
-const _q = new THREE.Quaternion();
-
 // A hinge pivot: rotate(angle) about a fixed local axis, allocation free.
 export class Hinge {
   constructor(name, origin, axis, parentOrigin = null) {

@@ -80,7 +80,6 @@ export function buildWing(ctx) {
   const { paint, hard, glass, lod } = ctx;
   const ss = sList(lod);
   const xs = xList(lod);
-  const tmpP = new THREE.Vector3();
   const islandW = ctx.island('wing', W.rootX, 0, W.tipX - W.rootX, P_AF, 1.0);
   const islandC = ctx.island('wingC', -W.rootX, 0, W.rootX * 2, P_AF, 1.0);
   const inCut = (x) => (x > W.flap.x0 && x < W.flap.x1) || (x > W.aileron.x0 && x < W.aileron.x1);

@@ -210,7 +210,6 @@ ui.addDebugButton('Night', () => sky.setTime(22));
 ui.addDebugButton('Lights', () => plane.command('cycleLights'));
 
 // ---------------- frame ----------------
-const _v = new THREE.Vector3();
 let fps = 60;
 function frame(dt) {
   sky.dome.position.copy(camera.position);

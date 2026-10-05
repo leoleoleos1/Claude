@@ -220,7 +220,6 @@ export class SeaplanePhysics {
   setLoading(p) {
     Object.assign(this.payload, p);
     const pl = this.payload;
-    const fuelKg = (pl.fuelL + pl.fuelR) * DIM.fuelDensity;
     const items = [
       [DIM.emptyMass, L(0, 2.2, 0.86)],
       [pl.fuelL * DIM.fuelDensity, L(-1.4, 3.45, 1.25)],
@@ -248,7 +247,6 @@ export class SeaplanePhysics {
     this.lateralMoment = c.x * m * G;
     // inertia: base distribution scaled with mass, plus payload point masses
     const base = DIM.emptyMass / 1450;
-    void fuelKg;
     const Ixx = 5200 * base + (pl.fuelL + pl.fuelR) * DIM.fuelDensity * 1.4 * 1.4;
     const Iyy = 8600 * base + (pl.fuelL + pl.fuelR) * DIM.fuelDensity * 1.4 * 1.4 + pl.cargo * 1.6;
     const Izz = 3900 * base + pl.cargo * 1.6 + (pl.pilot + pl.copilot) * 0.2;
@@ -539,7 +537,7 @@ export class SeaplanePhysics {
       if (vp2 < 0.04 || (s.det && this.detached[s.det])) { s.alpha = 0; s.cl = 0; s.stalled = 0; continue; }
       let alpha = Math.atan2(wn, wc) + s.incidence;
       // control deflections
-      let dCl0 = 0, dCm = 0, dCd = 0, clMax = s.clMax, a0 = s.a0;
+      let dCm = 0, dCd = 0, clMax = s.clMax, a0 = s.a0;
       if (s.ctrl === 'aileron') {
         // Beaver-style drooping ailerons follow the flaps at half angle
         const fd = (fl / DEG) * 0.5;
@@ -624,7 +622,7 @@ export class SeaplanePhysics {
 
   _hydro(h) {
     const env = this.env, o = this.out;
-    const P = this._c, V = this._d, U = this._e, nW = this._f, Fv = this._g;
+    const P = this._c, V = this._d, U = this._e, Fv = this._g;
     let buoy = 0, wetCount = 0;
     let bowL = 0, bowR = 0, stepL = 0, stepR = 0, slam = 0;
     const flowOK = !!env.waterFlow;

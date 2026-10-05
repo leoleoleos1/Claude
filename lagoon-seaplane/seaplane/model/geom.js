@@ -485,16 +485,6 @@ export function polygon(b, pts2, matrix, holes = []) {
   return start;
 }
 
-// Extruded polygon (side walls + caps), depth along +Z from 0 to depth.
-export function extrude(b, pts2, depth, matrix) {
-  const start = b.vertexCount;
-  const shape = new THREE.Shape(pts2.map((p) => new THREE.Vector2(p[0], p[1])));
-  const g = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, steps: 1 });
-  b.append(g.toNonIndexed(), matrix);
-  g.dispose();
-  return start;
-}
-
 // Matrix helpers -------------------------------------------------------------
 const _q = new THREE.Quaternion(), _s = new THREE.Vector3(1, 1, 1), _e = new THREE.Euler();
 export function mat(x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1, order = 'XYZ') {

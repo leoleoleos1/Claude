@@ -143,7 +143,7 @@ export function createSeaplane(options = {}) {
   const handPose = { left: 'grip', right: 'grip' };
 
   // scratch
-  const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _q = new THREE.Quaternion(), _m = new THREE.Matrix4();
+  const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _m = new THREE.Matrix4();
   const _camPos = new THREE.Vector3(), _camQuat = new THREE.Quaternion(), _camScale = new THREE.Vector3();
   const _local = new THREE.Vector3(), _src = new THREE.Vector3();
 

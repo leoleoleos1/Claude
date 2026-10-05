@@ -514,7 +514,7 @@ export class Effects {
     this.wetDrip = 0;
     // scratch
     this._p = new THREE.Vector3(); this._q = new THREE.Vector3(); this._w = new THREE.Vector3();
-    this._fwd = new THREE.Vector3(); this._right = new THREE.Vector3(); this._up = new THREE.Vector3();
+    this._fwd = new THREE.Vector3(); this._right = new THREE.Vector3();
     this._d = new THREE.Vector3(); this._camFwd = new THREE.Vector3(); this._m3 = new THREE.Matrix3();
     this._wind = new THREE.Vector3();
     this._ed = {};
@@ -679,7 +679,6 @@ export class Effects {
     this._m3.setFromMatrix4(M);
     const fwd = this._fwd.set(0, 0, -1).applyMatrix3(this._m3);
     const right = this._right.set(1, 0, 0).applyMatrix3(this._m3);
-    const up = this._up.set(0, 1, 0).applyMatrix3(this._m3);
     const vel = s.vel;
     const wind = this._wind.copy(env.wind || this._wind.set(0, 0, 0));
     const night = s.night, day = 1 - night;

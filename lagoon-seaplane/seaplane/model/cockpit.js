@@ -45,7 +45,6 @@ export const GAUGE_LAYOUT = [
 ];
 
 export function buildCockpit(ctx) {
-  const lod = ctx.lod;
   const st = new GeoBuilder('hard');
   const dyn = new GeoBuilder('rig');
   const gauge = new GeoBuilder('plain');
@@ -72,14 +71,12 @@ export function buildCockpit(ctx) {
   // side walls: quilted padding forward of the doors and below the sills, ribs + painted skin aft
   const quilt = (x0, y0, z0, z1, y1, side) => {
     st.setColor(new THREE.Color(0x4a3b2c).multiplyScalar(0.85 + rand() * 0.2)).setMat(0.85, 0, KIND.FABRIC, 0.7);
-    const start = st.vertexCount;
     grid(st, Math.max(2, Math.round((z1 - z0) / 0.06)), Math.max(2, Math.round((y1 - y0) / 0.06)), (s, t, out) => {
       const z = z0 + (z1 - z0) * s, y = y0 + (y1 - y0) * t;
       const puff = Math.sin(((z - z0) / 0.12) * Math.PI) ** 2 * Math.sin(((y - y0) / 0.12) * Math.PI) ** 2;
       out.p.set(side * (x0 - 0.012 * puff), y, z);
       out.u = z; out.v = y;
     }, { flip: side < 0 });
-    void start;
   };
   for (const side of [-1, 1]) {
     quilt(hw, floor, 0.06, DIM.doorPilot.z0 - 0.01, 2.9, side);
@@ -174,14 +171,12 @@ export function buildCockpit(ctx) {
     box(st, 0.05, 0.11, 0.0015, panelMat(-0.598, -0.17, 0.0025).multiply(mat(0, 0, 0, 0, 0, 0.35)));
     // glareshield (padded hood) over the panel top
     st.setColor(0x221d18).setMat(0.85, 0, KIND.LEATHER, 0.6);
-    const gs = st.vertexCount;
     grid(st, 12, 4, (s, t, out) => {
       const x = (s - 0.5) * (pw + 0.02);
       const a = t * Math.PI * 0.55;
       out.p.set(x, 2.86 + Math.sin(a) * 0.06, 0.4 - (1 - Math.cos(a)) * 0.16 - t * 0.04);
       out.u = x; out.v = t * 0.3;
     });
-    void gs;
     // wet compass on the glareshield centre
     st.setColor(0x151515).setMat(0.4, 0.2, KIND.PLASTIC, 0.4);
     roundedBox(st, 0.075, 0.06, 0.07, 0.012, mat(0, 2.965, 0.27));
@@ -395,12 +390,10 @@ export function buildCockpit(ctx) {
     for (let v = s0; v < st.vertexCount; v++) { const zz = st.position[v * 3], yy = st.position[v * 3 + 1]; st.position[v * 3] = -0.06; st.position[v * 3 + 1] = yy; st.position[v * 3 + 2] = zz; st.normal[v * 3] = -1; st.normal[v * 3 + 1] = 0; st.normal[v * 3 + 2] = 0; }
     st.mirrorX(s0);
     box(st, 0.12, 0.02, 0.1, mat(0, 2.33, 0.435));
-    const top = st.vertexCount;
     grid(st, 1, 6, (s, t, out) => {
       const z = 0.48 + t * 0.3, y = 2.33 - t * (2.33 - floor);
       out.p.set((s - 0.5) * 0.12, y, z); out.u = s; out.v = t;
     }, { flip: true });
-    void top;
     const defs = [['throttle', -0.035, 0x111111], ['prop', 0, 0x1f3f8c], ['mixture', 0.035, 0x9c1b12]];
     for (const [name, x, col] of defs) {
       const pivot = v3(x, 2.29, 0.5);

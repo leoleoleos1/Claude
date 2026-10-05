@@ -94,7 +94,6 @@ export function buildFuselage(ctx) {
   const secs = zs.map((z) => fuselageSection(z));
   const tmp = [0, 0];
   // ring tables
-  const ringStep = lod === 0 ? 1 : 0; // lods use a coarser ring
   const jList = [];
   if (lod === 0) for (let j = 0; j <= RING; j++) jList.push(j);
   else {
@@ -104,7 +103,6 @@ export function buildFuselage(ctx) {
     for (const k of half) jList.push(k);
     for (let i = half.length - 2; i >= 0; i--) jList.push(RING - half[i]);
   }
-  void ringStep;
   const nj = jList.length;
   const XY = new Float32Array(ns * nj * 2), V = new Float32Array(ns * nj);
   for (let i = 0; i < ns; i++) {
@@ -437,14 +435,12 @@ function flatPane(glass, side, z0, z1, y0, y1, inset, lod) {
 function doorJamb(ctx, side, z0, z1, y0, y1, lod) {
   const hw = DIM.cabinHalfW;
   const pts = [];
-  const tmp = [0, 0];
   const top = (z) => { const sec = fuselageSection(z); return y1 !== null ? Math.min(y1, sec.yt - sec.rt) : sec.yt - sec.rt; };
   const n = 12;
   pts.push(new THREE.Vector3(side * (hw + 0.002), y0, z0));
   pts.push(new THREE.Vector3(side * (hw + 0.002), y0, z1));
   for (let k = 0; k <= n; k++) { const z = THREE.MathUtils.lerp(z1, z0, k / n); pts.push(new THREE.Vector3(side * (hw + 0.002), top(z), z)); }
   pts.push(new THREE.Vector3(side * (hw + 0.002), y0, z0));
-  void tmp;
   ctx.hard.setColor(0x0d0d0c).setMat(0.8, 0, KIND.RUBBER, 0.5);
   tube(ctx.hard, densify(pts, 0.08), 0.009, { sides: lod === 0 ? 5 : 3, up: new THREE.Vector3(side, 0, 0) });
 }
@@ -471,8 +467,6 @@ function buildDoor(ctx, name, side, z0, z1, y0, y1, island, lod, glassId) {
     const ys = [yb, (yb + winBot) * 0.5, winBot, THREE.MathUtils.lerp(winBot, wt, 0.5), wt, tp];
     return ys[r];
   };
-  const sec0 = fuselageSection(1.0);
-  void sec0;
   // fuselage-island uv for wall point
   const uvWall = (z, y) => {
     const sec = fuselageSection(z);
