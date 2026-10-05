@@ -75,10 +75,12 @@ export function assembleLod0(model, mats) {
     const p = model.parts[key];
     if (!p) continue;
     const retract = new Hinge(key + '.retract', p.retract.origin, p.retract.axis);
+    // steering pivot sits on the rudder post, carried by the retract pivot
     const steer = new THREE.Group();
+    steer.position.copy(p.hinge.origin).sub(p.retract.origin);
     retract.object.add(steer);
     const m = mesh(p.hard.toGeometry(), mats.hard, { cast: false, name: key });
-    m.position.sub(p.retract.origin);
+    m.position.copy(p.hinge.origin).negate();
     steer.add(m);
     group.add(retract.object);
     hinges[key] = { retract, steer, axis: p.hinge.axis.clone(), set(steerAngle, retractAngle) {

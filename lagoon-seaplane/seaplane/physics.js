@@ -72,6 +72,7 @@ export class SeaplanePhysics {
       onWater: false, planing: false, beached: false, submerged: 0, stall: 0, waterSpeed: 0,
       buoyancyFrac: 0, lastImpact: 0, slam: 0, sprayBow: [0, 0], sprayStep: [0, 0], groundContact: false,
       wingDrag: 0, propStrike: 0, engineWater: 0, contactsN: 0, scrape: 0, grind: 0,
+      accBody: new THREE.Vector3(0, G, 0), rho: RHO_AIR, propwash: 0, waterH: 0, groundH: -1e9, propTipWater: -10,
     };
     this.events = []; // { type, data } consumed by the plane each frame
     this.onPreStep = null; // called before every fixed step (engine, controls)
@@ -97,6 +98,8 @@ export class SeaplanePhysics {
     this._e = new THREE.Vector3(); this._f = new THREE.Vector3(); this._g = new THREE.Vector3(); this._h = new THREE.Vector3();
     this._wind = new THREE.Vector3();
     this._flow = new THREE.Vector3();
+    this._flowL = new THREE.Vector3();
+    this._flowR = new THREE.Vector3();
     this._out = { normal: new THREE.Vector3(), depth: 0 };
     this._m = new Float64Array(9);
     this._qa = new THREE.Quaternion();
@@ -425,7 +428,6 @@ export class SeaplanePhysics {
     this.toBodyDir(this._acc, this._b);
     const gl = this._b.y / G;
     o.gLoad += (gl - o.gLoad) * Math.min(1, h * 12);
-    o.accBody = o.accBody || new THREE.Vector3();
     o.accBody.lerp(this._b, Math.min(1, h * 20));
     o.vs = this.vel.y;
     o.groundSpeed = Math.hypot(this.vel.x, this.vel.z);
@@ -592,11 +594,20 @@ export class SeaplanePhysics {
     let buoy = 0, wetCount = 0;
     let bowL = 0, bowR = 0, stepL = 0, stepR = 0, slam = 0;
     const flowOK = !!env.waterFlow;
-    const floodK = { L: this.flood.L, R: this.flood.R };
+    if (flowOK) {
+      // one current sample per float (the current varies slowly over a float length)
+      this._h.set(-DIM.float.x - CG_MODEL.x, -CG_MODEL.y, 1.2 - CG_MODEL.z);
+      this.pointWorld(this._h, P); env.waterFlow(P.x, P.z, this._flowL);
+      this._h.x = DIM.float.x - CG_MODEL.x;
+      this.pointWorld(this._h, P); env.waterFlow(P.x, P.z, this._flowR);
+    }
+    const floodL = this.flood.L, floodR = this.flood.R;
     let fwdSpeed = 0;
+    let whPair = 0;
     for (const s of this.samples) {
       this.pointWorld(s.local, P);
-      const wh = env.waterHeight(P.x, P.z);
+      // the two halves of a station are ~0.2 m apart: one surface query per station
+      const wh = s.half < 0 ? (whPair = env.waterHeight(P.x, P.z)) : whPair;
       const d = wh - P.y;
       s.d = d;
       if (d <= 0) { s.wet = 0; continue; }
@@ -617,7 +628,7 @@ export class SeaplanePhysics {
       this.addForceLocalPoint(this._h, Fv);
       // point velocity relative to the water
       this.pointVel(s.local, V);
-      if (flowOK) { env.waterFlow(P.x, P.z, this._flow); V.sub(this._flow); }
+      if (flowOK) V.sub(s.float === 'L' ? this._flowL : this._flowR);
       this.toBodyDir(V, U); // body frame relative velocity of the hull point
       // wetted areas
       const chineH = st.chine;
@@ -652,7 +663,7 @@ export class SeaplanePhysics {
       const dmg = side === 'L' ? this.damage.floatL : this.damage.floatR;
       const hole = Math.max(0, 0.75 - dmg);
       if (hole > 0 && wetCount > 0) this.flood[side] = Math.min(this.flood[side] + hole * 0.004 * h * 60, 2.6);
-      const vol = floodK[side];
+      const vol = side === 'L' ? floodL : floodR;
       if (vol > 0) {
         this._a.set(0, -RHO_W * G * vol, 0);
         this._b.set(side === 'L' ? -DIM.float.x : DIM.float.x, 0.3, 1.2).sub(CG_MODEL);
@@ -720,6 +731,18 @@ export class SeaplanePhysics {
     let staticNear = false;
     if (env.contact) staticNear = env.contact(this.cg, 9, this._out);
     const chockNear = this.chocks.length > 0;
+    // local ground plane under the plane from three samples; exact queries only for
+    // contacts the plane estimate puts within half a metre of the ground
+    let gPlane = false, sF = 0, sR = 0, fx = 0, fz = 0;
+    if (nearGround && Number.isFinite(gh)) {
+      const m = this._m;
+      fx = -m[2]; fz = -m[8];
+      const fl = Math.hypot(fx, fz) || 1; fx /= fl; fz /= fl;
+      const g1 = env.groundHeight(this.cg.x + fx * 5, this.cg.z + fz * 5);
+      const g2 = env.groundHeight(this.cg.x - fz * 5, this.cg.z + fx * 5);
+      if (Number.isFinite(g1) && Number.isFinite(g2)) { sF = (g1 - gh) / 5; sR = (g2 - gh) / 5; gPlane = true; }
+    }
+    const waterTop = (o.waterH ?? -1e9) + 1.5;
     let n = 0;
     o.propStrike = 0;
     o.wingDrag = 0;
@@ -732,7 +755,12 @@ export class SeaplanePhysics {
       N.set(0, 1, 0);
       let mu = c.mu;
       if (nearGround) {
-        const g = env.groundHeight(P.x, P.z);
+        let g;
+        if (gPlane) {
+          const dx = P.x - this.cg.x, dz = P.z - this.cg.z;
+          g = gh + sF * (dx * fx + dz * fz) + sR * (-dx * fz + dz * fx);
+          if (g - (P.y - c.r) > -0.5) g = env.groundHeight(P.x, P.z);
+        } else g = env.groundHeight(P.x, P.z);
         const pg = g - (P.y - c.r);
         if (pg > 0) {
           pen = pg;
@@ -757,7 +785,7 @@ export class SeaplanePhysics {
       // a crew member rocking / pushing the plane breaks it free
       if (this.input.pushOff > 0) mu *= 1 - 0.8 * this.input.pushOff;
       // water: non-float points get strong drag when dipped
-      if (c.kind !== 'keel' && c.kind !== 'chine' && c.kind !== 'bow' && (o.waterH ?? -1e9) > -1e8) {
+      if (c.kind !== 'keel' && c.kind !== 'chine' && c.kind !== 'bow' && (o.waterH ?? -1e9) > -1e8 && P.y - c.r < waterTop) {
         const wh = env.waterHeight(P.x, P.z);
         const dw = wh - (P.y - c.r);
         if (dw > 0) {
@@ -821,7 +849,9 @@ export class SeaplanePhysics {
     o.scrape = scrape;
     o.grind = grind;
     // beached: resting on keels / chocks with little buoyancy
-    o.beached = any && o.buoyancyFrac < 0.6 && o.groundSpeed < 1.5 && this.contacts.some((c) => c.on && (c.kind === 'keel' || c.kind === 'chine'));
+    let keelOn = false;
+    for (let i = 0; i < this.contacts.length; i++) { const c = this.contacts[i]; if (c.on && (c.kind === 'keel' || c.kind === 'chine')) { keelOn = true; break; } }
+    o.beached = any && o.buoyancyFrac < 0.6 && o.groundSpeed < 1.5 && keelOn;
     if (any && this.wasAirborne && !o.onWater) {
       this.wasAirborne = false;
       const vs = -this.vel.y;

@@ -39,6 +39,7 @@ function particleMaterial(FU, additive) {
     shader.uniforms.uFxLight = FU.uFxLight;
     shader.uniforms.uFxSun = FU.uFxSun;
     shader.uniforms.uFxNear = FU.uFxNear;
+    shader.uniforms.uFxWaterY = FU.uFxWaterY;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>
 attribute vec4 aPos;
@@ -50,7 +51,8 @@ uniform float uFxNear;
 varying vec4 vFxCol;
 varying vec4 vFxMisc;
 varying vec2 vFxUv;
-varying float vFxScatter;`)
+varying float vFxScatter;
+varying float vFxWy;`)
       .replace('#include <project_vertex>', /* glsl */ `
   vFxCol = aCol;
   vFxMisc = aMisc;
@@ -60,6 +62,7 @@ varying float vFxScatter;`)
     float fc = cos(aMisc.x), fs = sin(aMisc.x);
     vec2 fq = vec2(fc * position.x - fs * position.y, fs * position.x + fc * position.y) * aPos.w;
     mvPosition = modelViewMatrix * vec4(aPos.x + fq.x, aPos.y, aPos.z + fq.y, 1.0);
+    vFxWy = 1e4;
   } else {
     mvPosition = modelViewMatrix * vec4(aPos.xyz, 1.0);
     vec2 fq;
@@ -74,6 +77,8 @@ varying float vFxScatter;`)
       fq = vec2(fc * position.x - fs * position.y, fs * position.x + fc * position.y) * aPos.w;
     }
     mvPosition.xy += fq;
+    // world height of this corner (camera right / up rows of the view matrix)
+    vFxWy = aPos.y + viewMatrix[1][0] * fq.x + viewMatrix[1][1] * fq.y;
   }
   // forward scattering when looking toward the sun through spray / smoke
   vec3 fxView = normalize(aPos.xyz - cameraPosition);
@@ -85,10 +90,12 @@ varying float vFxScatter;`)
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
 uniform vec3 uFxLight;
+uniform float uFxWaterY;
 varying vec4 vFxCol;
 varying vec4 vFxMisc;
 varying vec2 vFxUv;
 varying float vFxScatter;
+varying float vFxWy;
 ${NOISE}`)
       .replace('vec4 diffuseColor = vec4( diffuse, opacity );', /* glsl */ `vec4 diffuseColor = vec4( diffuse, opacity );
   {
@@ -100,11 +107,11 @@ ${NOISE}`)
     if (kind < 0.5) { // smoke / mist puff
       float n = fx_n(vFxUv * 3.0 + seed + age * 0.7) * 0.62 + fx_n(vFxUv * 7.0 - seed * 1.3) * 0.38;
       a = 1.0 - smoothstep(0.15, 1.0, r + (n - 0.5) * 0.75);
-    } else if (kind < 1.5) { // spray: clumps of droplets
-      float n = fx_n(vFxUv * 8.0 + seed) * 0.6 + fx_n(vFxUv * 21.0 - seed) * 0.4;
+    } else if (kind < 1.5) { // spray: clumps of droplets with a misty core
+      float n = fx_n(vFxUv * 7.0 + seed) * 0.6 + fx_n(vFxUv * 19.0 - seed) * 0.4;
       float core = 1.0 - smoothstep(0.0, 1.0, r);
-      a = core * smoothstep(0.38 + age * 0.25, 0.72, n * 0.7 + core * 0.4);
-      a = max(a, core * core * 0.3 * (1.0 - age));
+      a = core * smoothstep(0.22 + age * 0.3, 0.55, n * 0.6 + core * 0.5);
+      a = max(a, core * core * 0.45 * (1.0 - age * 0.7));
     } else if (kind < 2.5) { // streak: spark / drip / droplet
       a = 1.0 - smoothstep(0.0, 1.0, length(c * vec2(2.0, 2.0)));
     } else if (kind < 3.5) { // fire
@@ -120,6 +127,8 @@ ${NOISE}`)
       a = exp(-r * r * 5.0) + exp(-r * 2.2) * 0.2;
     }
     ${additive ? '' : 'col *= uFxLight * (1.0 + vFxScatter * 2.5 * step(kind, 1.5));'}
+    // soft intersection with the sea surface (no hard cut lines on the billboards)
+    a *= smoothstep(uFxWaterY - 0.05, uFxWaterY + 0.35, vFxWy);
     diffuseColor = vec4(col, clamp(a, 0.0, 1.0) * vFxCol.a);
     if (diffuseColor.a < 0.003) discard;
   }`);
@@ -153,6 +162,7 @@ class ParticlePool {
     geo.setAttribute('aVel', this.aVel);
     geo.setAttribute('aCol', this.aCol);
     geo.setAttribute('aMisc', this.aMisc);
+    this._attrs = [this.aPos, this.aVel, this.aCol, this.aMisc];
     geo.instanceCount = 0;
     this.geo = geo;
     this.mesh = new THREE.Mesh(geo, material);
@@ -198,7 +208,7 @@ class ParticlePool {
     this.n = n;
     // foam rides the waves: refresh a few heights per frame (round robin)
     if (env && env.waterHeight && n > 0) {
-      const m = Math.min(n, 40);
+      const m = Math.min(n, 12);
       for (let j = 0; j < m; j++) {
         this._rr = (this._rr + 1) % n;
         const i = this._rr;
@@ -221,7 +231,8 @@ class ParticlePool {
       C[o] = this.r[i]; C[o + 1] = this.g[i]; C[o + 2] = this.b[i]; C[o + 3] = al;
       M[o] = this.rot[i]; M[o + 1] = kind; M[o + 2] = t; M[o + 3] = this.seed[i];
     }
-    for (const at of [this.aPos, this.aVel, this.aCol, this.aMisc]) {
+    for (let ai = 0; ai < 4; ai++) {
+      const at = this._attrs[ai];
       at.clearUpdateRanges();
       if (n > 0) { at.addUpdateRange(0, n * 4); at.needsUpdate = true; }
     }
@@ -374,6 +385,7 @@ export class Effects {
       uFxLight: { value: new THREE.Vector3(1, 1, 1) },
       uFxSun: { value: new THREE.Vector3(0, 1, 0) },
       uFxNear: { value: 0.5 },
+      uFxWaterY: { value: -1e4 },
       uPropAng: { value: 0 }, uPropBlur: { value: 0 }, uPropAlpha: { value: 0 }, uPropFlick: { value: 0 },
       uGlowPix: { value: 0.001 },
       uBeam: { value: 0 }, uPool: { value: 0 },
@@ -677,8 +689,9 @@ export class Effects {
     const sunset = smooth(-0.05, 0.1, sunY) * (1 - smooth(0.15, 0.45, sunY));
     this.uniforms.uFxLight.value.set(0.06 + 0.98 * day + 0.06 * sunset, 0.07 + 0.92 * day - 0.05 * sunset, 0.1 + 0.88 * day - 0.15 * sunset);
     if (env.sunDirection) this.uniforms.uFxSun.value.copy(env.sunDirection);
-    // fog-like fade for additive particles
+    // fog-like fade for additive particles; sea level near the plane for the soft water cut
     const fog = s.fogDensity || 0;
+    this.uniforms.uFxWaterY.value = o.waterH !== undefined && o.waterH > -1e8 ? o.waterH : -1e4;
 
     // ---------------- water: bow spray, rooster tail, mist, wake foam, prop wash ----------------
     if (o.onWater) {
@@ -687,8 +700,8 @@ export class Effects {
       for (let side = 0; side < 2; side++) {
         // bow spray sheets
         const bow = o.sprayBow[side];
-        if (bow > 2.5 && ws > 3) {
-          this.acc.bow[side] += dt * rk * clamp((bow - 2.5) * 9 + chop * 20, 0, 90);
+        if (bow > 0.3 && ws > 2.2) {
+          this.acc.bow[side] += dt * rk * clamp((bow - 0.3) * 28 + ws * 2 + chop * 20, 0, 110);
           while (this.acc.bow[side] >= 1) {
             this.acc.bow[side] -= 1;
             const out = R() < 0.5 ? -1 : 1; // spray leaves both sides of each float
@@ -699,14 +712,14 @@ export class Effects {
             const sp = ws * (0.18 + R() * 0.12);
             const lat = out * (0.6 + R() * 0.6);
             this._spray(P.x, wy + 0.1, P.z,
-              right.x * lat * sp + up.x * 0 + fwd.x * ws * 0.25, sp * (0.55 + R() * 0.5) + 0.8, right.z * lat * sp + fwd.z * ws * 0.25,
-              0.12 + R() * 0.15, 0.9 + ws * 0.03, 0.45 + R() * 0.45, 0.62, wy - 0.25);
+              right.x * lat * sp + fwd.x * ws * 0.25, sp * (0.55 + R() * 0.5) + 0.8, right.z * lat * sp + fwd.z * ws * 0.25,
+              0.22 + R() * 0.22, 1.3 + ws * 0.06, 0.5 + R() * 0.5, 0.85, wy - 0.25);
           }
         }
         // rooster tail behind the steps while planing / accelerating through the hump
         const st = o.sprayStep[side];
-        if (st > 6 && ws > 7) {
-          this.acc.step[side] += dt * rk * clamp((ws - 7) * 4, 0, 60);
+        if (st > 0.8 && ws > 6.5) {
+          this.acc.step[side] += dt * rk * clamp((ws - 6.5) * 5 * Math.min(st, 3), 0, 70);
           while (this.acc.step[side] >= 1) {
             this.acc.step[side] -= 1;
             Q.copy(this.pts.step[side]);
@@ -715,7 +728,7 @@ export class Effects {
             const wy = env.waterHeight ? env.waterHeight(P.x, P.z) : P.y;
             const h = 1.2 + ws * 0.09 + R() * 1.4;
             this._spray(P.x, wy, P.z, fwd.x * ws * 0.15 + (R() - 0.5) * 1.5, h, fwd.z * ws * 0.15 + (R() - 0.5) * 1.5,
-              0.2 + R() * 0.2, 1.4, 0.8 + R() * 0.6, 0.55, wy - 0.25);
+              0.35 + R() * 0.3, 2.0 + ws * 0.05, 0.8 + R() * 0.7, 0.8, wy - 0.25);
           }
         }
         // wake / foam along the floats
@@ -757,12 +770,11 @@ export class Effects {
       }
       // host hooks (rate limited)
       this.acc.emitSpray -= dt;
-      if (this.acc.emitSpray <= 0 && (o.sprayBow[0] > 2.5 || o.sprayBow[1] > 2.5)) {
+      if (this.acc.emitSpray <= 0 && ws > 2.2 && (o.sprayBow[0] > 0.3 || o.sprayBow[1] > 0.3 || o.planing)) {
         this.acc.emitSpray = 1 / 12;
         for (let side = 0; side < 2; side++) {
-          if (o.sprayBow[side] <= 2.5) continue;
-          this._local(this.pts.bow[side], M, P);
-          this._emit('spray', P.x, P.y, P.z, clamp(o.sprayBow[side] / 15, 0, 1.5), fwd.x, 0, fwd.z);
+          this._local(o.planing ? this.pts.step[side] : this.pts.bow[side], M, P);
+          this._emit('spray', P.x, P.y, P.z, clamp((o.sprayBow[side] + o.sprayStep[side]) / 4 + ws / 30, 0, 1.5), fwd.x, 0, fwd.z);
         }
       }
       this.acc.emitWake -= dt;
@@ -916,7 +928,7 @@ export class Effects {
     // ---------------- landing beam & pool ----------------
     const beamK = land * (0.04 + 0.55 * night + 0.35 * s.rain);
     this.beam.visible = beamK > 0.005;
-    this.uniforms.uBeam.value = beamK * 0.35;
+    this.uniforms.uBeam.value = beamK * 0.75;
     this.pool.visible = false;
     if (land > 0 && night > 0.05) {
       // march the beam axis to the surface
@@ -944,8 +956,8 @@ export class Effects {
         const rad = t * Math.tan(0.24);
         this.pool.position.set(hx, sy + 0.06, hz);
         this.pool.rotation.set(-Math.PI / 2, Math.atan2(dir.x, dir.z), 0, 'YXZ');
-        this.pool.scale.set(rad * 2, (rad * 2) / inc, 1);
-        this.uniforms.uPool.value = land * night * clamp(90 / (t * t), 0.05, 1.2) * Math.min(1, inc * 3);
+        this.pool.scale.set(rad * 2, Math.min((rad * 2) / inc, rad * 5), 1);
+        this.uniforms.uPool.value = land * night * clamp(260 / (t * t), 0.08, 1.4) * Math.min(1, 0.35 + inc * 3);
         this.pool.visible = true;
       }
     }

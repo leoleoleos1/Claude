@@ -390,6 +390,7 @@ export function createGaugeMaterial(U, map, { name = 'seaplane.gauges', rig = tr
   const m = new THREE.MeshStandardMaterial({
     name, map, emissiveMap: map, emissive: new THREE.Color(1.0, 0.62, 0.32), emissiveIntensity: 0,
     roughness: 0.55, metalness: 0.0, envMapIntensity: 0.6,
+    alphaTest: 0.5, // the attitude face has a see-through window onto the horizon card
   });
   if (rig) {
     m.onBeforeCompile = (shader) => { shader.vertexShader = injectRig(shader.vertexShader, U, shader); };

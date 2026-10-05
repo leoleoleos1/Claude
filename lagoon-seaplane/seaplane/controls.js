@@ -59,6 +59,7 @@ export class Controls {
   }
 
   _match(action, code) { const k = this.keymap[action]; return Array.isArray(k) && k.includes(code); }
+  _k(action) { return this._down(action) ? 1 : 0; }
   _down(action) { const k = this.keymap[action]; if (!Array.isArray(k)) return false; for (const c of k) if (this.keys.has(c)) return true; return false; }
 
   attach(dom) {
@@ -141,10 +142,9 @@ export class Controls {
   // smoothing step (call every frame with real dt)
   update(dt) {
     if (this.held.engine) this._engineHeldT += dt;
-    const k = (a) => (this._down(a) ? 1 : 0);
-    let tp = k('pitchUp') - k('pitchDown');
-    let tr = k('rollRight') - k('rollLeft');
-    let ty = k('rudderRight') - k('rudderLeft');
+    let tp = this._k('pitchUp') - this._k('pitchDown');
+    let tr = this._k('rollRight') - this._k('rollLeft');
+    let ty = this._k('rudderRight') - this._k('rudderLeft');
     if (this.mouseYoke) { tp = -this.yoke.y; tr = this.yoke.x; }
     else { this.yoke.x = approach(this.yoke.x, 0, 0, 2.5, dt); this.yoke.y = approach(this.yoke.y, 0, 0, 2.5, dt); }
     if (this.ext.pitch !== null) tp = this.ext.pitch;
@@ -157,9 +157,9 @@ export class Controls {
     this.yaw = approach(this.yaw, ty, this.ext.yaw !== null ? 6 : 2.0, 3.2, dt);
     // throttle
     if (this.ext.throttle !== null) this.throttle = approach(this.throttle, this.ext.throttle, 1.2, 1.2, dt);
-    else this.throttle = clamp(this.throttle + (k('throttleUp') - k('throttleDown')) * 0.45 * dt, 0, 1);
+    else this.throttle = clamp(this.throttle + (this._k('throttleUp') - this._k('throttleDown')) * 0.45 * dt, 0, 1);
     // trim (held keys)
-    this.trim = clamp(this.trim + (k('trimUp') - k('trimDown')) * 0.3 * dt, -1, 1);
+    this.trim = clamp(this.trim + (this._k('trimUp') - this._k('trimDown')) * 0.3 * dt, -1, 1);
   }
 
   drainCommands(out) {

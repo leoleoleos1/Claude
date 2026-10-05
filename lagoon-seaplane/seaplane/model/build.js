@@ -104,7 +104,10 @@ export function toLocalFrame(model) {
   const all = [ctx.paint, ctx.hard, ctx.glass, ctx.bakeOnly, ...ctx.extra];
   for (const b of all) if (!b.localSpace) b.translateAll(-CG_MODEL.x, -CG_MODEL.y, -CG_MODEL.z);
   const shift = (v) => v && v.isVector3 && v.sub(CG_MODEL);
-  for (const k in model.parts) shift(model.parts[k].hinge && model.parts[k].hinge.origin);
+  for (const k in model.parts) {
+    shift(model.parts[k].hinge && model.parts[k].hinge.origin);
+    shift(model.parts[k].retract && model.parts[k].retract.origin);
+  }
   for (const k in model.doors || {}) shift(model.doors[k].hinge.origin);
   for (const k in model.lights) if (model.lights[k].isVector3 && !k.endsWith('Dir')) shift(model.lights[k]);
   for (const k in model.anchors) {

@@ -596,9 +596,11 @@ export function createSeaplane(options = {}) {
     let dr = eul.roll - needles.roll;
     dr = Math.atan2(Math.sin(dr), Math.cos(dr));
     needles.roll += dr * (1 - Math.exp(-dt / 0.15));
-    let hdgRate = (eul.heading - st.prevHeading) / Math.max(dt, 1e-4);
-    hdgRate = Math.atan2(Math.sin(hdgRate * dt), Math.cos(hdgRate * dt)) / Math.max(dt, 1e-4);
+    let dHdg = eul.heading - st.prevHeading;
+    dHdg = Math.atan2(Math.sin(dHdg), Math.cos(dHdg));
     st.prevHeading = eul.heading;
+    // ignore teleports (placement) and keep the gyro in its mechanical range
+    const hdgRate = Math.abs(dHdg) > 0.3 ? 0 : clamp(dHdg / Math.max(dt, 1e-4), -0.5, 0.5);
     needles.turn = damp(needles.turn, hdgRate / DEG, 0.5, dt);
     // slip ball: damped mass in a curved tube, driven by the lateral specific force
     const fx = o.accBody ? o.accBody.x : 0;
@@ -627,11 +629,11 @@ export function createSeaplane(options = {}) {
     rigRotate('turnPlane', -clamp((needles.turn / 3) * 20, -35, 35) * DEG);
     rigSlide2('slipBall', needles.ball, (needles.ball * needles.ball) / (2 * 0.04), PANEL_UP);
     // ---- controls
-    const yokeIdx = ['yokeL', 'yokeR'];
-    for (const yn of yokeIdx) rigRotate(yn, -cmd.roll * 0.6, cmd.pitch * 0.075);
+    rigRotate('yokeL', -cmd.roll * 0.6, cmd.pitch * 0.075);
+    rigRotate('yokeR', -cmd.roll * 0.6, cmd.pitch * 0.075);
     const yw = cmd.yaw + (physics.out.onWater ? physics.input.rudder - cmd.yaw : 0) * 0.5;
-    for (const pn of ['pedalLl', 'pedalRl']) rigRotate(pn, yw * 0.22);
-    for (const pn of ['pedalLr', 'pedalRr']) rigRotate(pn, -yw * 0.22);
+    rigRotate('pedalLl', yw * 0.22); rigRotate('pedalRl', yw * 0.22);
+    rigRotate('pedalLr', -yw * 0.22); rigRotate('pedalRr', -yw * 0.22);
     rigRotate('lever.throttle', (0.5 - engine.throttle) * 0.9);
     rigRotate('lever.prop', (0.5 - engine.propLever) * 0.9);
     rigRotate('lever.mixture', (0.5 - engine.mixture) * 0.9);
@@ -640,19 +642,18 @@ export function createSeaplane(options = {}) {
     rigRotate('waterRudderHandle', 0, (1 - st.wrDown) * 0.06);
     const fs = engine.fuelSelector;
     rigRotate('fuelSelector', fs === 'left' ? 0.8 : fs === 'right' ? -0.8 : fs === 'off' ? 1.57 : 0);
-    const sw = (name, on) => rigRotate('switch.' + name, on ? -0.5 : 0.45);
-    sw('master', engine.master);
-    sw('nav', lights.nav);
-    sw('landing', lights.landing);
-    sw('panel', lights.nav);
-    sw('pump', engine.state === 'cranking' || engine.state === 'running');
-    sw('avionics', engine.master);
+    rigRotate('switch.master', engine.master ? -0.5 : 0.45);
+    rigRotate('switch.nav', lights.nav ? -0.5 : 0.45);
+    rigRotate('switch.landing', lights.landing ? -0.5 : 0.45);
+    rigRotate('switch.panel', lights.nav ? -0.5 : 0.45);
+    rigRotate('switch.pump', engine.state === 'cranking' || engine.state === 'running' ? -0.5 : 0.45);
+    rigRotate('switch.avionics', engine.master ? -0.5 : 0.45);
     rigRotate('magKey', -(engine.magnetos * 0.5) - (engine.state === 'cranking' ? 0.45 : 0));
     rig.tex.needsUpdate = true;
     // ---- attitude indicator card (texture transform)
     const ht = mats.horizon.map;
     if (ht && ht.matrix) {
-      const c = Math.cos(-needles.roll), s = Math.sin(-needles.roll);
+      const c = Math.cos(needles.roll), s = Math.sin(needles.roll);
       const sv = 0.5; // the disc shows 60 deg of pitch
       const pv = (needles.pitch / DEG) / (ht.userData.degPerUv || 120);
       // uv' = C + R * S * (uv - C) + (0, pitch)
@@ -818,8 +819,14 @@ export function createSeaplane(options = {}) {
       chase.update(dt, root.position, root.quaternion, physics.vel, st.yawRate, env);
     }
     // ---- interaction, effects, audio
+    const wasSeatedInside = interaction.seated;
     interaction.update(dt, root.matrixWorld);
     if (seated && !interaction.seated && !interaction.transition) seated = false;
+    if (!wasSeatedInside && interaction.seated) {
+      // pilot pulls the door shut after climbing in
+      const dn = interaction.seatId === 'copilot' ? 'doorR' : 'doorL';
+      if (doors[dn].open) toggleDoor(dn, false);
+    }
     updateHands(dt);
     frameEffects(dt);
     frameAudio(dt);
@@ -911,8 +918,9 @@ export function createSeaplane(options = {}) {
     if (st.wetOverride !== null) wet = st.wetOverride;
     else if (env.wetness) wet = env.wetness();
     else {
-      const sprayWet = o.onWater ? clamp((o.sprayBow[0] + o.sprayBow[1]) / 20, 0, 1) : 0;
-      const target = Math.max(rain, sprayWet, o.submerged > 0.5 ? 1 : 0);
+      const sprayWet = o.onWater ? clamp((o.sprayBow[0] + o.sprayBow[1] + o.sprayStep[0] + o.sprayStep[1]) / 12, 0, 0.3) : 0;
+      const dunked = (o.engineWater || 0) > 0.05 || (physics.wreck && o.onWater) ? 1 : 0;
+      const target = Math.max(rain, sprayWet, dunked);
       st.wet = target > st.wet ? damp(st.wet, target, 3, dt) : Math.max(target, st.wet - dt * (0.004 + 0.01 * (1 - env.night())));
       wet = st.wet;
     }
@@ -1103,8 +1111,9 @@ export function createSeaplane(options = {}) {
       }
       const chk = interaction.canExit();
       if (!chk.ok) { st.hintOverride = chk.reason === 'flying' ? HINTS.flying : HINTS.moving; st.hintTimer = 2; emit('hint', chk); return null; }
+      const dn = interaction.seatId === 'copilot' ? 'doorR' : 'doorL';
       const pose = interaction.unseat();
-      if (pose) { physics.setLoading({ pilot: 0, copilot: 0 }); }
+      if (pose) { physics.setLoading({ pilot: 0, copilot: 0 }); if (!doors[dn].open && !(dn === 'doorR' && doors.cargo.open)) toggleDoor(dn, true); }
       return pose;
     },
     canExit() { return interaction ? interaction.canExit() : { ok: false, reason: 'notReady' }; },

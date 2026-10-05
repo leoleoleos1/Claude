@@ -27,7 +27,7 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 const scene = new THREE.Scene();
-const BASE_FOV = 70;
+let BASE_FOV = 70;
 const camera = new THREE.PerspectiveCamera(BASE_FOV, window.innerWidth / window.innerHeight, 0.05, 6000);
 scene.add(camera);
 const sky = new Sky(renderer, scene);
@@ -325,5 +325,5 @@ window.__sandbox = {
   step(seconds, dt = 1 / 60) { for (let t = 0; t < seconds; t += dt) frame(dt); renderer.render(scene, camera); },
   key(code, down) { canvas.dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', { code, bubbles: true })); },
   input,
-  fovBase: BASE_FOV,
+  setFov(f) { BASE_FOV = f; },
 };

@@ -670,7 +670,7 @@ export function createSeaplaneAudio(audioCtx, outputNode, options = {}) {
     ramp(whistleBP.frequency, 1900 + air * 9, now, 0.2);
     // water beds
     ramp(rushGain.gain, s.onWater ? clamp(s.waterSpeed / 14, 0, 1) * 0.3 : 0, now, 0.08);
-    ramp(sprayGain.gain, clamp(s.spray / 12, 0, 1) * 0.16, now, 0.06);
+    ramp(sprayGain.gain, clamp(s.spray / 3, 0, 1) * clamp(s.waterSpeed / 6, 0, 1) * 0.16, now, 0.06);
     // stall horn
     ramp(hornGain.gain, s.stallWarn ? 0.055 : 0, now, 0.025);
     // hull slaps at rest / slow taxi, rope creaks, g-load creaks
