@@ -905,7 +905,7 @@ export class Effects {
 
     // ---------------- glows ----------------
     const C = this.gCol.array;
-    const navK = s.lights.nav ? 0.12 + 0.88 * night : 0;
+    const navK = s.lights.nav && s.navOk !== false ? 0.12 + 0.88 * night : 0;
     this.strobeT += dt;
     if (this.strobeT > 1.2) this.strobeT -= 1.2;
     const strobe = s.lights.nav && (this.strobeT < 0.06 || (this.strobeT > 0.16 && this.strobeT < 0.2)) ? 0.55 + 0.45 * night : 0;

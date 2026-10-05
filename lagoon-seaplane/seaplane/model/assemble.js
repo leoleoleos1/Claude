@@ -2,6 +2,32 @@
 // material, hinged pivots for control surfaces / doors / water rudders and the
 // propeller. Geometry is already in the plane-local frame (origin at CG).
 import * as THREE from 'three';
+import { CG_MODEL, DIM } from './dims.js';
+import { partitionTriangles } from './geom.js';
+
+// Pre-split crash pieces, tested on triangle centroids in the plane-local frame:
+// the float hulls (below the strut roots) and the outer wing panels (outboard of
+// the flaps, with the ailerons). Their triangles sit at the end of every static
+// index buffer, so a piece that breaks off is hidden by trimming the index range
+// - no extra draw calls while the airframe is intact.
+const FLOAT_TOP = 0.95 - CG_MODEL.y;
+const TIP_X = DIM.wing.aileron.x0;
+export const PIECES = [
+  { id: 'floatL', hinge: 'waterRudderL', test: (x, y) => x < -0.85 && y < FLOAT_TOP },
+  { id: 'floatR', hinge: 'waterRudderR', test: (x, y) => x > 0.85 && y < FLOAT_TOP },
+  { id: 'wingTipL', hinge: 'aileronL', test: (x, y) => x < -TIP_X && y > 0.3 },
+  { id: 'wingTipR', hinge: 'aileronR', test: (x, y) => x > TIP_X && y > 0.3 },
+];
+const PIECE_TESTS = PIECES.map((p) => p.test);
+
+// Static mesh with breakable runs: { mesh, rest, runs, tail } where tail is a
+// pristine copy of the index data after the rest (used to rebuild the buffer).
+function breakable(builder, mat, opts) {
+  const part = partitionTriangles(builder, PIECE_TESTS);
+  const m = mesh(builder.toGeometry(), mat, opts);
+  const arr = m.geometry.index.array;
+  return { mesh: m, rest: part.rest, runs: part.runs, tail: arr.slice(part.rest) };
+}
 
 const _q = new THREE.Quaternion();
 
@@ -44,11 +70,12 @@ export function assembleLod0(model, mats) {
   const group = new THREE.Group();
   group.name = 'seaplane.lod0';
   const { ctx } = model;
-  const statics = {
-    paint: mesh(ctx.paint.toGeometry(), mats.paint, { name: 'paint' }),
-    hard: mesh(ctx.hard.toGeometry(), mats.hard, { name: 'hard' }),
-    glass: mesh(ctx.glass.toGeometry(), mats.glass, { cast: false, name: 'glass' }),
-  };
+  const breakables = [
+    breakable(ctx.paint, mats.paint, { name: 'paint' }),
+    breakable(ctx.hard, mats.hard, { name: 'hard' }),
+    breakable(ctx.glass, mats.glass, { cast: false, name: 'glass' }),
+  ];
+  const statics = { paint: breakables[0].mesh, hard: breakables[1].mesh, glass: breakables[2].mesh };
   statics.glass.renderOrder = 2;
   for (const k in statics) group.add(statics[k]);
   const hinges = {};
@@ -108,7 +135,7 @@ export function assembleLod0(model, mats) {
   const propMesh = mesh(model.prop.blades.toGeometry(), mats.hard, { name: 'prop.blades' });
   propPivot.add(spinner, propMesh);
   group.add(propPivot);
-  return { group, statics, hinges, doors, propPivot, propMesh, spinner };
+  return { group, statics, breakables, hinges, doors, propPivot, propMesh, spinner };
 }
 
 // LOD1 / LOD2: static meshes only (control surfaces folded into the statics,
@@ -143,12 +170,14 @@ export function assembleLodN(model, mats, lod) {
     mergeInto(ctx.hard, sp);
     ctx.hard.transform(s0, new THREE.Matrix4().makeTranslation(model.prop.hub.x, model.prop.hub.y, model.prop.hub.z));
   }
-  const statics = {
-    paint: mesh(ctx.paint.toGeometry(), mats.paintLod, { name: 'paint' }),
-    hard: mesh(ctx.hard.toGeometry(), mats.hardLod, { name: 'hard', cast: lod === 1 }),
-  };
+  const breakables = [
+    breakable(ctx.paint, mats.paintLod, { name: 'paint' }),
+    breakable(ctx.hard, mats.hardLod, { name: 'hard', cast: lod === 1 }),
+  ];
+  const statics = { paint: breakables[0].mesh, hard: breakables[1].mesh };
   if (lod === 1 && ctx.glass.vertexCount) {
-    statics.glass = mesh(ctx.glass.toGeometry(), mats.glassLod, { cast: false, name: 'glass' });
+    breakables.push(breakable(ctx.glass, mats.glassLod, { cast: false, name: 'glass' }));
+    statics.glass = breakables[2].mesh;
     statics.glass.renderOrder = 2;
   }
   for (const k in statics) group.add(statics[k]);
@@ -159,7 +188,28 @@ export function assembleLodN(model, mats, lod) {
   let spinner = null;
   if (lod < 2) { spinner = mesh(model.prop.builder.toGeometry(), mats.hardLod, { name: 'prop.spinner', cast: false }); propPivot.add(spinner); }
   group.add(propPivot);
-  return { group, statics, propPivot, propMesh, spinner };
+  return { group, statics, breakables, propPivot, propMesh, spinner };
+}
+
+// A world-space copy of one piece for the debris simulation: views of the LOD0
+// static geometries that share their vertex buffers and draw only the piece's run.
+export function createPieceViews(lod0, k, center) {
+  const out = [];
+  for (const br of lod0.breakables) {
+    const r = br.runs[k];
+    if (!r.count) continue;
+    const src = br.mesh.geometry;
+    const g = new THREE.BufferGeometry();
+    for (const name in src.attributes) g.setAttribute(name, src.attributes[name]);
+    g.setIndex(new THREE.BufferAttribute(br.tail.slice(r.start - br.rest, r.start - br.rest + r.count), 1));
+    g.boundingBox = r.box.clone();
+    g.boundingSphere = r.box.getBoundingSphere(new THREE.Sphere());
+    const m = mesh(g, br.mesh.material, { cast: br.mesh.castShadow, receive: br.mesh.receiveShadow, name: br.mesh.name + '.piece' });
+    m.renderOrder = br.mesh.renderOrder;
+    m.position.copy(center).negate();
+    out.push(m);
+  }
+  return out;
 }
 
 // Append builder b into target (same layout).

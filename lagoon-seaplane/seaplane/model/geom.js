@@ -206,6 +206,41 @@ export class GeoBuilder {
   }
 }
 
+// Reorder a builder's triangles into runs: [rest][tests[0]][tests[1]]... where a
+// triangle joins the first test that accepts its centroid. Vertices are not
+// touched, so the runs can be hidden by trimming the index range or drawn on
+// their own by another geometry sharing the vertex buffers. Returns
+// { rest, runs: [{ start, count, box }] } in index units (box = vertex bounds).
+const _pv = new THREE.Vector3();
+export function partitionTriangles(b, tests) {
+  const I = b.index, O = b.occluder, P = b.position;
+  const bins = [[]];
+  for (let k = 0; k < tests.length; k++) bins.push([]);
+  for (let t = 0; t < I.length / 3; t++) {
+    const a = I[t * 3] * 3, c = I[t * 3 + 1] * 3, d = I[t * 3 + 2] * 3;
+    const x = (P[a] + P[c] + P[d]) / 3, y = (P[a + 1] + P[c + 1] + P[d + 1]) / 3, z = (P[a + 2] + P[c + 2] + P[d + 2]) / 3;
+    let k = 0;
+    for (let j = 0; j < tests.length; j++) if (tests[j](x, y, z)) { k = j + 1; break; }
+    bins[k].push(t);
+  }
+  const NI = [], NO = [], runs = [];
+  for (let k = 0; k < bins.length; k++) {
+    const start = NI.length, box = new THREE.Box3();
+    for (const t of bins[k]) {
+      for (let v = 0; v < 3; v++) {
+        const vi = I[t * 3 + v];
+        NI.push(vi);
+        if (k) box.expandByPoint(_pv.fromArray(P, vi * 3));
+      }
+      NO.push(O[t]);
+    }
+    if (k) runs.push({ start, count: NI.length - start, box });
+  }
+  b.index = NI;
+  b.occluder = NO;
+  return { rest: bins[0].length * 3, runs };
+}
+
 // ---------------------------------------------------------------------------
 // Parametric grid surface. fn(s, t, out, i, j) fills out.p and optionally
 // out.u/out.v (uv in metres), out.uv1 ([u,v]) and out.edge (wear edge factor).

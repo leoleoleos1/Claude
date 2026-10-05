@@ -65,7 +65,8 @@ export class SeaplanePhysics {
     this.damage = { wingL: 1, wingR: 1, floatL: 1, floatR: 1, prop: 1, engine: 1, tail: 1, windscreen: 1, hull: 1 };
     this.flood = { L: 0, R: 0 }; // flooded volume per float (m^3)
     this.wreck = false;
-    this.detached = { wingTipL: false, floatL: false, prop: false };
+    // pre-split pieces that break off in a crash (the side that hit loses its tip / float)
+    this.detached = { wingTipL: false, wingTipR: false, floatL: false, floatR: false, prop: false };
     // telemetry
     this.out = {
       airspeed: 0, groundSpeed: 0, aoa: 0, beta: 0, gLoad: 1, vs: 0, agl: 0, altitude: 0,
@@ -151,6 +152,7 @@ export class SeaplanePhysics {
         n: new THREE.Vector3(-side * Math.sin(dih), Math.cos(dih), 0), c: new THREE.Vector3(0, 0, 1),
         incidence: w.incidence, clMax: 1.95, a0: -3 * DEG, cla: 6.2, cd0: 0.012, k: 0.046,
         propwash: x0 < 1.3 ? (1.3 - x0) / (x1 - x0) : 0, alpha: 0, cl: 0, stalled: 0, dmg: side < 0 ? 'wingL' : 'wingR',
+        det: x0 > 4 ? (side < 0 ? 'wingTipL' : 'wingTipR') : null, // outer panel = the detachable tip
       };
     };
     this.surfaces = [
@@ -165,7 +167,13 @@ export class SeaplanePhysics {
     ];
     // contact points: [local, radius, friction, part, kind]
     const cp = [];
-    const add = (p, r, mu, part, kind = 'hard') => cp.push({ local: p, r, mu, part, kind, pen: 0, vn: 0, on: false });
+    // det: the contact sits on a detachable piece and stops acting once it broke off;
+    // only: a stand-in at the broken end that acts only after that piece is gone
+    const add = (p, r, mu, part, kind = 'hard', only = null) => {
+      const tip = (kind === 'wing' || kind === 'wingtip') && Math.abs(p.x) > w.aileron.x0;
+      const det = part === 'floatL' || part === 'floatR' ? part : tip ? (p.x < 0 ? 'wingTipL' : 'wingTipR') : null;
+      cp.push({ local: p, r, mu, part, kind, det, only, pen: 0, vn: 0, on: false });
+    };
     for (const fx of [-F.x, F.x]) {
       const fp = fx < 0 ? 'floatL' : 'floatR';
       for (const z of [F.bowZ + 0.04, -2.3, -1.6, -0.6, 0.6, F.stepZ - 0.02, 2.4, 3.6, F.sternZ - 0.1]) {
@@ -182,6 +190,12 @@ export class SeaplanePhysics {
     add(L(w.tipX - 0.05, wingChordY(w.tipX) + 0.02, w.leZ + 0.7), 0.2, 0.5, 'wingR', 'wingtip');
     add(L(-4.6, wingChordY(4.6), w.leZ + 0.4), 0.18, 0.5, 'wingL', 'wing');
     add(L(4.6, wingChordY(4.6), w.leZ + 0.4), 0.18, 0.5, 'wingR', 'wing');
+    // broken ends: inner wing panel, float strut stubs
+    for (const sx of [-1, 1]) {
+      const sd = sx < 0 ? 'L' : 'R';
+      add(L(sx * 4.0, wingChordY(4.0), w.leZ + 0.6), 0.15, 0.6, 'wing' + sd, 'wing', 'wingTip' + sd);
+      for (const z of [DIM.floatStruts.frontZ, DIM.floatStruts.rearZ]) add(L(sx * 1.15, 0.98, z), 0.08, 0.6, 'hull', 'hull', 'float' + sd);
+    }
     add(L(-DIM.hstab.tipX + 0.1, DIM.hstab.y, 6.3), 0.15, 0.5, 'tail', 'tail');
     add(L(DIM.hstab.tipX - 0.1, DIM.hstab.y, 6.3), 0.15, 0.5, 'tail', 'tail');
     add(L(0, DIM.fin.topY, 6.6), 0.15, 0.5, 'tail', 'tail');
@@ -259,6 +273,27 @@ export class SeaplanePhysics {
     this.acc = 0;
     this._initialised = true;
     this.wasAirborne = false;
+  }
+
+  // Lift the airframe out of the ground after its contact set changed (repair()
+  // puts the floats back while the wreck rests on the strut stubs).
+  depenetrate() {
+    const env = this.env;
+    if (!env.groundHeight) return;
+    let pen = 0;
+    for (const c of this.contacts) {
+      if ((c.det && this.detached[c.det]) || (c.only && !this.detached[c.only])) continue;
+      this.pointWorld(c.local, this._c);
+      const g = env.groundHeight(this._c.x, this._c.z);
+      if (Number.isFinite(g)) pen = Math.max(pen, g - (this._c.y - c.r));
+      for (const b of this.chocks) pen = Math.max(pen, this._boxPen(this._c, c.r, b, this._e));
+    }
+    if (pen <= 0) return;
+    this.cg.y += pen + 0.01;
+    this.origin.y += pen + 0.01;
+    this.originPrev.copy(this.origin);
+    this.qPrev.copy(this.q);
+    if (this.vel.y < 0) this.vel.y = 0;
   }
 
   _mat() {
@@ -501,7 +536,7 @@ export class SeaplanePhysics {
       const wc = w.x * s.c.x + w.y * s.c.y + w.z * s.c.z;
       const wn = w.x * s.n.x + w.y * s.n.y + w.z * s.n.z;
       const vp2 = wc * wc + wn * wn;
-      if (vp2 < 0.04) { s.alpha = 0; s.cl = 0; continue; }
+      if (vp2 < 0.04 || (s.det && this.detached[s.det])) { s.alpha = 0; s.cl = 0; s.stalled = 0; continue; }
       let alpha = Math.atan2(wn, wc) + s.incidence;
       // control deflections
       let dCl0 = 0, dCm = 0, dCd = 0, clMax = s.clMax, a0 = s.a0;
@@ -528,7 +563,6 @@ export class SeaplanePhysics {
       const dmg = this.damage[s.dmg] ?? 1;
       if (s.side) cl *= 0.65 + 0.35 * dmg;
       if (!s.tail) cl *= geLift;
-      if (s.name === 'wingL_out' && this.detached.wingTipL) cl *= 0.35;
       s.cl = cl;
       const ae = Math.abs(alpha - a0);
       const stallA = clMax / s.cla + 2.5 * DEG;
@@ -550,7 +584,7 @@ export class SeaplanePhysics {
     const vb2 = V * V;
     if (vb2 > 0.01) {
       const q = 0.5 * rho;
-      const fFront = 0.85 + (this.detached.floatL ? -0.15 : 0);
+      const fFront = 0.85 - (this.detached.floatL ? 0.15 : 0) - (this.detached.floatR ? 0.15 : 0);
       const fSide = 9.5, fVert = 14;
       const Dx = q * fSide * 0.55 * bodyAir.x * Math.abs(bodyAir.x);
       const Dy = q * fVert * 0.5 * bodyAir.y * Math.abs(bodyAir.y);
@@ -604,7 +638,9 @@ export class SeaplanePhysics {
     const floodL = this.flood.L, floodR = this.flood.R;
     let fwdSpeed = 0;
     let whPair = 0;
+    const detL = this.detached.floatL, detR = this.detached.floatR;
     for (const s of this.samples) {
+      if (s.float === 'L' ? detL : detR) { s.d = 0; s.wet = 0; continue; } // float broke off
       this.pointWorld(s.local, P);
       // the two halves of a station are ~0.2 m apart: one surface query per station
       const wh = s.half < 0 ? (whPair = env.waterHeight(P.x, P.z)) : whPair;
@@ -619,8 +655,7 @@ export class SeaplanePhysics {
       s.wet = df;
       wetCount++;
       // buoyancy (vertical), reduced on a flooded float
-      const intact = s.float === 'L' ? (this.detached.floatL ? 0 : 1) : 1;
-      const fb = RHO_W * G * area * st.dz * intact;
+      const fb = RHO_W * G * area * st.dz;
       buoy += fb;
       Fv.set(0, fb, 0);
       // apply at the centroid of the submerged half section (approx.)
@@ -683,7 +718,9 @@ export class SeaplanePhysics {
     // water rudders (lifting blades at the sterns)
     const inp = this.input;
     if (inp.waterRudderDown > 0.5) {
-      for (const r of this.waterRudders) {
+      for (let i = 0; i < this.waterRudders.length; i++) {
+        const r = this.waterRudders[i];
+        if (i === 0 ? this.detached.floatL : this.detached.floatR) continue;
         this.pointWorld(r.local, P);
         const wh = env.waterHeight(P.x, P.z);
         if (wh < P.y) continue;
@@ -749,7 +786,7 @@ export class SeaplanePhysics {
     o.engineWater = 0;
     for (const c of this.contacts) {
       c.on = false;
-      if (c.part && this.detached[c.part === 'wingL' ? 'wingTipL' : 'x'] && c.kind === 'wingtip') continue;
+      if ((c.det && this.detached[c.det]) || (c.only && !this.detached[c.only])) continue;
       this.pointWorld(c.local, P);
       let pen = 0;
       N.set(0, 1, 0);
@@ -879,7 +916,7 @@ export class SeaplanePhysics {
     this.events.push({ type: 'impact', part: c.part, kind: c.kind, speed });
     const k = (speed - 3.5) * 0.12;
     this._damagePart(c.part, k);
-    if (speed > 11) this._crash(speed);
+    if (speed > 11) this._crash(speed, c.local.x < -0.3 ? 'L' : c.local.x > 0.3 ? 'R' : null);
   }
 
   _damagePart(part, amount) {
@@ -888,19 +925,21 @@ export class SeaplanePhysics {
     this.events.push({ type: 'damage', part, amount });
   }
 
-  _crash(speed) {
+  // side: 'L' | 'R' (the side that hit); null = the lower wing (left when level)
+  _crash(speed, side = null) {
     if (this.wreck) return;
     if (speed < 7) return;
+    if (side !== 'L' && side !== 'R') { this._mat(); side = Math.atan2(-this._m[3], this._m[4]) > 0.05 ? 'R' : 'L'; }
     this.wreck = true;
     this.damage.engine = 0;
     this.damage.prop = 0;
     this.damage.windscreen = 0;
-    this.damage.wingL = Math.min(this.damage.wingL, 0.2);
-    this.damage.floatL = Math.min(this.damage.floatL, 0.3);
-    this.detached.wingTipL = true;
+    this.damage['wing' + side] = Math.min(this.damage['wing' + side], 0.2);
+    this.damage['float' + side] = Math.min(this.damage['float' + side], 0.3);
+    this.detached['wingTip' + side] = true;
     this.detached.prop = true;
-    if (speed > 13) this.detached.floatL = true;
-    this.events.push({ type: 'wreck', speed });
+    if (speed > 13) this.detached['float' + side] = true;
+    this.events.push({ type: 'wreck', speed, side });
   }
 
   _rope(r) {

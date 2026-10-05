@@ -37,6 +37,7 @@ export class DebugViz {
   _buildShapes() {
     const p = this.plane;
     const add = (s, color) => {
+      if (!(s.max.x >= s.min.x)) return; // emptied shape (its float broke off)
       const size = new THREE.Vector3().subVectors(s.max, s.min);
       const box = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(size.x, Math.max(size.y, 0.01), size.z)), new THREE.LineBasicMaterial({ color, depthTest: false }));
       box.position.addVectors(s.min, s.max).multiplyScalar(0.5);

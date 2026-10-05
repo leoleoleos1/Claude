@@ -70,7 +70,7 @@ if (plane.seated) {
 ```
 
 `root` (the plane, moved by the module) and `worldRoot` (world-space helpers:
-particles, ropes, chocks, light pool) are added to `scene` when `scene` is passed;
+particles, ropes, chocks, light pool, wreck debris) are added to `scene` when `scene` is passed;
 otherwise add them yourself. `dispose()` removes both and frees GPU resources.
 The module never touches `window`, pointer lock, `requestAnimationFrame`,
 `setAnimationLoop`, renderer settings or `THREE.ShaderChunk`.
@@ -119,7 +119,7 @@ Performance note: on the water the physics spends most of its time inside
 |---|---|
 | `root`, `worldRoot` | `THREE.Group`s (see 1.). |
 | `ready` | `Promise` resolving to the API when generation is done. Most calls are safe before, but interactables/walk shapes are empty until then. |
-| `state` | read-only snapshot updated every frame: `airspeed, groundSpeed, altitude, agl, vs, heading, pitch, roll, rpm, throttle, flaps (deg), flapIndex, trim, engine ('off'|'cranking'|'running'|'stalled'|'dead'), fuel[L,R] (litres), onWater, planing, beached, moored, seated, seatId, stall (0..1), stallWarning, gLoad, damage {wingL, wingR, floatL, floatR, prop, engine, tail, windscreen, hull} (1 = intact), wreck, lod, interiorVisible, cameraMode, waterRudderDown, lights, doors {doorL, doorR, cargo}, assist, quality, physicsMs, buildMs, exitProgress (0..1 while holding E), hint ({key, text} or null)`. |
+| `state` | read-only snapshot updated every frame: `airspeed, groundSpeed, altitude, agl, vs, heading, pitch, roll, rpm, throttle, flaps (deg), flapIndex, trim, engine ('off'|'cranking'|'running'|'stalled'|'dead'), fuel[L,R] (litres), onWater, planing, beached, moored, seated, seatId, stall (0..1), stallWarning, gLoad, damage {wingL, wingR, floatL, floatR, prop, engine, tail, windscreen, hull} (1 = intact), detached {wingTipL, wingTipR, floatL, floatR, prop}, wreck, lod, interiorVisible, cameraMode, waterRudderDown, lights, doors {doorL, doorR, cargo}, assist, quality, physicsMs, buildMs, exitProgress (0..1 while holding E), hint ({key, text} or null)`. |
 | `hudData` | small HUD-ready subset (`throttlePct, airspeedKt, altitudeFt, vsFpm, flapsDeg, engine, stallWarning, hint, rpm, trim, fuelL, fuelR, waterRudders`). The module renders no HUD. |
 | `interactables`, `walkShapes`, `blockShapes` | see 5. |
 | `handTargets` | `{ left, right }` `Object3D`s (children of `root`) on the yoke horns / throttle knob. The right hand moves to the throttle while the throttle changes and returns to the yoke ~1.5 s later. |
@@ -129,13 +129,14 @@ Performance note: on the water the physics spends most of its time inside
 | `KEYMAP` | this plane's (mutable) copy of the key map. |
 | `lights` | `{ nav, landing }` (also cycled with L). |
 | `onEvent` | optional host callback `(type, data)`, same stream as `env.emit`. |
+| `debris` | world-space `Object3D`s (children of `worldRoot`) of the pieces that broke off in a wreck, e.g. to tag them for the game's own collision or cleanup. Reused array; empty while intact. |
 | `physics`, `engine`, `controls`, `effects`, `audio`, `lods`, `interior`, `materials`, `uniforms`, `DIM` | internals, for tools and debugging. |
 
 ### Methods
 | method | description |
 |---|---|
 | `update(dt)` | advance everything. Host calls once per frame with real dt; works at dt = 0.1 (background tabs). 120 Hz fixed physics steps with render interpolation. |
-| `prewarm(renderer?, camera?)` | compiles every program the plane can use (all LODs, interior, doors, particles, prop disc, glows, beam, pool) via `renderer.compile`, plus one render into a 16x16 target with culling off so the shadow-depth variants exist too. After this `renderer.info.programs.length` does not grow (verified: boarding, night lights, rain, engine, chase cam, damage, wreck, respawns, far LODs). |
+| `prewarm(renderer?, camera?)` | compiles every program the plane can use (all LODs, interior, doors, wreck debris, particles, prop disc, glows, beam, pool) via `renderer.compile`, plus one render into a 16x16 target with culling off so the shadow-depth variants exist too. After this `renderer.info.programs.length` does not grow (verified: boarding, night lights, rain, engine, chase cam, damage, wreck, respawns, far LODs). |
 | `pointVelocity(worldPoint, out)` | world velocity of a point rigidly attached to the plane (ride along on the floats). |
 | `seat(id = 'pilot', fromPos?, fromQuat?, instant = false)` | board: opens the door if needed and plays a 0.85 s eased camera path from the given eye pose through the door into the seat (`'pilot'` or `'copilot'`). `instant` skips the transition (spawning in the air). The door closes behind the pilot. |
 | `unseat(force = false)` | hold-E exit: refuses with a hint when flying (agl > 1.5 m) or moving (> 4 m/s); finds a safe spot (float deck on water, ground beside the door when beached, the water when sinking or wrecked); 0.7 s camera path out. Returns the exit pose `{ position, velocity, inWater, surface }` (also `exitPose`, and `'unseated'` event). `force` drops the player out immediately (respawn). |
@@ -154,8 +155,8 @@ Performance note: on the water the physics spends most of its time inside
 | `pushOff(strength = 1)` | push the beached plane back toward the water (decays in ~0.25 s; call every frame while E is held - the push-off interactable does that). |
 | `setAssist(mode)`, `setQuality(q)` | `setQuality` re-bakes the paint atlas at the new size and changes particle budgets (no shader recompiles). |
 | `setWetness(v)`, `setLoading({ fuelL, fuelR, pilot, copilot, cargo, cargoZ })` | |
-| `damage(part, amount)` | testing: `'wingL'`, `'wingR'`, `'floatL'`, `'floatR'`, `'tail'`, `'windscreen'`, `'hull'`, `'engine'`, `'prop'`, `'wreck'`. |
-| `repair()`, `reset(pose?)` | `pose = { position, quaternion | yaw, velocity }`. |
+| `damage(part, amount)` | testing: `'wingL'`, `'wingR'`, `'floatL'`, `'floatR'`, `'tail'`, `'windscreen'`, `'hull'`, `'engine'`, `'prop'`, `'wreck'` (the lower wing's side breaks; left when level), `'wreckL'`, `'wreckR'`. |
+| `repair()`, `reset(pose?)` | `repair()` restores health and puts broken-off pieces back (lifting the airframe out of the ground if the restored floats would start buried). `reset` = `repair()` + engine off + optional `pose = { position, quaternion | yaw, velocity }`. |
 | `setAudio(ctx, out, options?)` | attach sound later (e.g. after the AudioContext was created on a user gesture). |
 | `dispose()` | removes everything, frees geometry, materials, textures, audio nodes. |
 
@@ -192,6 +193,9 @@ Each entry of `plane.interactables`:
 boxes in plane-local space whose shared matrices are updated every `update()`.
 Walkable: float decks, ladder steps, the strut footsteps, the cabin floor at the
 doors. Blocking: fuselage, cabin roof, tail cone, cabin walls, belly, float hulls.
+When a float breaks off in a wreck, its deck, ladder and hull boxes become empty
+(`min` > `max` on every axis) until `repair()`; a host that tests point-in-box needs no
+special case.
 
 The sandbox walker (`sandbox/walker.js`) is a complete reference: it stands on the
 highest walk-shape top under the feet (step 0.45 m), stores its plane-local foot
@@ -257,7 +261,8 @@ and only these hooks fire.
 Gameplay events: `engine` (`'starterOn'`, `'cough'`, `'catch'`, `'backfire'`,
 `'misfire'`, `'runDown'`, `'shutdown'`, `'stall:water|fuel|strike|lowrpm|fire|dead'`,
 `'fire'`, `'fail'`, `'splash'`), `touchdown` `{ quality: 'smooth'|'firm'|'hard'|'crash', vs, speed, ground? }`,
-`impact` `{ part, kind, speed }`, `damage` `{ part, amount }`, `wreck`, `door`
+`impact` `{ part, kind, speed }`, `damage` `{ part, amount }`, `wreck` `{ speed, side }`,
+`detached` `{ part: 'wingTipL'|'wingTipR'|'floatL'|'floatR'|'prop' }`, `door`
 `{ name, open }`, `lights`, `moored`, `castOff`, `refuel`, `switch`, `hint`,
 `seatStart`, `seated`, `exitStart`, `unseated` `{ pose }`, `repaired`.
 
@@ -342,8 +347,14 @@ water rudders, flooding of holed floats, beaching on keels and chocks, ropes.
 ## 11. Known limitations
 
 - Damage is functional (lift loss, flooding, misfires, fire, wreck) and visible as
-  burn/soot, shattered windscreen cracks, a missing propeller and a bent blade; the
-  wing tip and float that detach physically in a wreck stay attached visually.
+  burn/soot, shattered windscreen cracks and a bent blade. Dents and holes are not
+  modelled per panel.
+- Wreck debris: the outer wing panel (with its aileron), the float (with its water
+  rudder) on the side that hit, and the propeller break off as pre-split pieces. Every
+  LOD hides them by trimming its index range (no extra draw calls while intact) and
+  world-space copies (sharing the LOD0 vertex buffers) tumble, float or sink and settle
+  on `groundHeight` / `waterHeight`. They do not collide with `contact()` shapes, the
+  plane or each other, and the torn edges are open (no rib caps).
 - Spray and foam are camera-facing / flat particles without depth-buffer soft
   particles; they fade softly where they meet the sea (approximate sea level near the
   plane), not against arbitrary geometry.

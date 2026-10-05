@@ -20,6 +20,7 @@ import { SeatCamera, ChaseCamera } from './camera.js';
 import { Interaction } from './interaction.js';
 import { Effects } from './effects.js';
 import { createSeaplaneAudio } from './audio.js';
+import { Debris } from './debris.js';
 
 const DEG = Math.PI / 180;
 const TAU = Math.PI * 2;
@@ -127,6 +128,8 @@ export function createSeaplane(options = {}) {
   let interaction = null;
   let effects = null;
   let audio = null;
+  let debris = null;
+  const debrisList = [];
   let model0 = null;
   let baked = null;
   const lods = [];
@@ -368,6 +371,14 @@ export function createSeaplane(options = {}) {
     api.walkShapes = interaction.walkShapes;
     api.blockShapes = interaction.blockShapes;
     effects = new Effects({ U, quality, useOwnEffects: opts.useOwnEffects, realLandingLight: opts.realLandingLight, model: m0, root, worldRoot, env, rand });
+    // crash debris: pre-split floats / outer wing panels / propeller
+    debris = new Debris({
+      root, worldRoot, lods, hinges: parts.hinges, physics, env, rand: rng(opts.seed * 31 + 5),
+      prop: { pivot: a0.propPivot, hub: m0.prop.hub, radius: DIM.propRadius },
+      onSplash: (x, y, z, k, vel) => { if (effects) effects.splash(x, y, z, k, vel); if (audio) audio.trigger('splash', k * 0.7); },
+      onImpact: (k) => { if (audio) audio.trigger('impact', k); },
+      onDetach: (id) => emit('detached', { part: id }),
+    });
     if (opts.audio && opts.audio.ctx) audio = createSeaplaneAudio(opts.audio.ctx, opts.audio.out || opts.audio.ctx.destination, { seed: opts.seed, listener: opts.audio.listener || 'camera' });
     // shadows: big exterior parts cast, interior and tiny parts do not
     root.traverse((o) => { if (o.isMesh && o.parent && o.parent.name === 'seaplane.interior') { o.castShadow = false; o.receiveShadow = true; } });
@@ -737,7 +748,7 @@ export function createSeaplane(options = {}) {
   const fx = {
     M: root.matrixWorld, vel: physics.vel, out: physics.out, physics,
     night: 0, rain: 0, wetness: 0, rpm: 0, omega: 0, running: false, power: 0, misfire: 0, engineDamage: 0, fire: false,
-    propAttached: true, propBent: false, lights, camPos: _camPos, camQuat: _camQuat, camFov: 60, viewH: 1080, chop: 0, rollSign: 0, fogDensity: 0,
+    propAttached: true, navOk: true, propBent: false, lights, camPos: _camPos, camQuat: _camQuat, camFov: 60, viewH: 1080, chop: 0, rollSign: 0, fogDensity: 0,
   };
   const af = {
     rpm: 0, combust: false, load: 0, misfire: 0, rough: 0, starter: false, knock: 0, bend: 0, airspeed: 0, pops: 0, grind: 0, scrape: 0,
@@ -796,6 +807,7 @@ export function createSeaplane(options = {}) {
     for (const ev of _evs) onPhysicsEvent(ev);
     for (const e of engine.events) onEngineEvent(e);
     engine.events.length = 0;
+    syncDetached();
     // ---- payload follows the seats
     // ---- camera (host's main camera)
     const cam = opts.camera;
@@ -805,6 +817,7 @@ export function createSeaplane(options = {}) {
     }
     // ---- animation
     animate(dt);
+    debris.update(dt);
     if (cam) updateLod(_camPos);
     // ---- seat camera springs & chase camera
     const shake = _shake;
@@ -849,6 +862,15 @@ export function createSeaplane(options = {}) {
     emit('engine', e);
   }
 
+  // pieces that broke off (or were repaired): statics, debris bodies, walk shapes, ropes
+  function syncDetached() {
+    if (!debris || !debris.sync()) return;
+    const det = physics.detached;
+    interaction.setFloatAttached('L', !det.floatL);
+    interaction.setFloatAttached('R', !det.floatR);
+    if ((det.floatL || det.floatR) && physics.moor.length) api.castOff();
+  }
+
   function onPhysicsEvent(ev) {
     if (effects) effects.onPhysicsEvent(ev, fx);
     if (audio) {
@@ -878,9 +900,10 @@ export function createSeaplane(options = {}) {
     const t = st.clock;
     const n1 = fl * Math.sin(t * 3.1) * Math.sin(t * 0.73), n2 = fl * Math.sin(t * 2.3 + 1) * Math.sin(t * 0.51), n3 = fl * Math.sin(t * 1.9 + 2);
     const pin = physics.input;
+    const det = physics.detached;
     const droop = st.flapDeg * 0.5 * DEG;
-    if (h.aileronR) h.aileronR.set(-pin.aileron * 0.35 + droop + n1);
-    if (h.aileronL) h.aileronL.set(pin.aileron * 0.35 + droop - n1);
+    if (h.aileronR && !det.wingTipR) h.aileronR.set(-pin.aileron * 0.35 + droop + n1);
+    if (h.aileronL && !det.wingTipL) h.aileronL.set(pin.aileron * 0.35 + droop - n1);
     if (h.flapR) h.flapR.set(st.flapDeg * DEG);
     if (h.flapL) h.flapL.set(st.flapDeg * DEG);
     if (h.elevator) h.elevator.set(-pin.elevator * 0.42 + n2);
@@ -888,8 +911,8 @@ export function createSeaplane(options = {}) {
     if (h.rudder) h.rudder.set(pin.rudder * 0.45 + n3);
     const steer = pin.rudder * 0.5;
     const retract = (1 - st.wrDown) * -1.45;
-    if (h.waterRudderL) h.waterRudderL.set(steer, retract);
-    if (h.waterRudderR) h.waterRudderR.set(steer, retract);
+    if (h.waterRudderL && !det.floatL) h.waterRudderL.set(steer, retract);
+    if (h.waterRudderR && !det.floatR) h.waterRudderR.set(steer, retract);
     // doors (eased swing)
     for (const k in doors) {
       const d = doors[k];
@@ -903,13 +926,15 @@ export function createSeaplane(options = {}) {
     // propeller: rotates clockwise seen from the cockpit (negative about +Z)
     st.propAngle -= engine.omega * dt;
     if (st.propAngle < -TAU * 1000) st.propAngle += TAU * 1000;
-    const propGone = physics.detached.prop;
+    const propGone = det.prop;
     const bladesVisible = !propGone && engine.rpm < 520;
     for (let i = 0; i < parts.props.length; i++) {
+      // a broken-off LOD0 propeller is flying around as debris (blades shown, no disc)
+      if (propGone && i === 0) { parts.propMeshes[0].visible = true; continue; }
       parts.props[i].rotation.z = st.propAngle % TAU;
       parts.propMeshes[i].visible = bladesVisible;
     }
-    for (const sp of parts.spinners) sp.visible = !propGone;
+    for (let i = 0; i < parts.spinners.length; i++) parts.spinners[i].visible = !propGone || i === 0;
     updateWobble(dt);
     updateCockpit(dt);
     // wetness, burn, cracks
@@ -963,6 +988,7 @@ export function createSeaplane(options = {}) {
     fx.engineDamage = 1 - engine.health;
     fx.fire = engine.fire;
     fx.propAttached = !physics.detached.prop;
+    fx.navOk = !physics.detached.wingTipL && !physics.detached.wingTipR; // the nav circuit dies with a wing tip
     fx.propBent = engine.propHealth < 0.8;
     fx.chop = st.chop;
     physics.euler(eul);
@@ -1017,7 +1043,7 @@ export function createSeaplane(options = {}) {
     ready: false, airspeed: 0, groundSpeed: 0, altitude: 0, agl: 0, vs: 0, heading: 0, pitch: 0, roll: 0,
     rpm: 0, throttle: 0, flaps: 0, flapIndex: 0, trim: 0, engine: 'off', fuel: [0, 0], onWater: false, planing: false,
     beached: false, moored: false, seated: false, seatId: null, stall: 0, stallWarning: false, gLoad: 1,
-    damage: physics.damage, wreck: false, lod: 0, interiorVisible: false, cameraMode: 'external', waterRudderDown: true,
+    damage: physics.damage, detached: physics.detached, wreck: false, lod: 0, interiorVisible: false, cameraMode: 'external', waterRudderDown: true,
     lights, doors: { doorL: false, doorR: false, cargo: true }, assist, quality, physicsMs: 0, buildMs: 0, exitProgress: 0,
     hint: null,
   };
@@ -1079,6 +1105,8 @@ export function createSeaplane(options = {}) {
     get engine() { return engine; },
     get controls() { return controls; },
     get lods() { return lods; },
+    // world-space Object3Ds of the pieces that broke off (reused array)
+    get debris() { return debris ? debris.list(debrisList) : debrisList; },
     get interior() { return interior; },
     get effects() { return effects; },
     get audio() { return audio; },
@@ -1209,7 +1237,7 @@ export function createSeaplane(options = {}) {
       if (part === 'engine') engine.health = Math.max(0, engine.health - amount);
       else if (part === 'prop') engine.propHealth = Math.max(0, engine.propHealth - amount);
       if (part in physics.damage) physics._damagePart(part, amount);
-      if (part === 'wreck') physics._crash(20);
+      if (part === 'wreck' || part === 'wreckL' || part === 'wreckR') physics._crash(20, part.length > 5 ? part[5] : null);
     },
     repair() {
       for (const k in physics.damage) physics.damage[k] = 1;
@@ -1220,6 +1248,9 @@ export function createSeaplane(options = {}) {
       st.burn = 0;
       U.uSpBurn.value = 0;
       if (effects) effects.clear();
+      const hadPieces = debris && debris.mask !== 0;
+      syncDetached();
+      if (hadPieces) { physics.depenetrate(); syncPose(0); }
       emit('repaired', {});
     },
     reset(pose = {}) {
@@ -1266,6 +1297,7 @@ export function createSeaplane(options = {}) {
     },
     dispose() {
       controls.detach();
+      if (debris) debris.dispose();
       if (audio) audio.dispose();
       if (effects) effects.dispose();
       if (baked) baked.dispose();

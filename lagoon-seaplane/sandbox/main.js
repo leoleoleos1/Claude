@@ -202,7 +202,8 @@ const ui = new SandboxUI({
   debug: (v) => { debugViz.group.visible = v; },
 });
 for (const part of ['wingL', 'floatL', 'floatR', 'engine', 'prop', 'windscreen', 'tail']) ui.addDebugButton(`Damage ${part}`, () => plane.damage(part, 0.5));
-ui.addDebugButton('Wreck', () => plane.damage('wreck'));
+ui.addDebugButton('Wreck (left)', () => plane.damage('wreckL'));
+ui.addDebugButton('Wreck (right)', () => plane.damage('wreckR'));
 ui.addDebugButton('Repair', () => plane.repair());
 ui.addDebugButton('Reset (beach)', () => spawn('beach'));
 ui.addDebugButton('Night', () => sky.setTime(22));
